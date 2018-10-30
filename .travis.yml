@@ -9,8 +9,8 @@ python:
   - "3.6"
 
 install: 
-  - make install_package
-  - make install_test
+  - pip3 install -e .
+  - pip3 install pytest flake8
   
 script: 
   # - make flake8
