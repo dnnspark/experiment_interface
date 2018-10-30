@@ -15,7 +15,7 @@ DESCRIPTION = 'pytorch train framework'
 URL = 'https://github.com/dnnspark/trainer'
 EMAIL = 'dnnsipark@gmail.com'
 AUTHOR = 'Dennis Park'
-REQUIRES_PYTHON = ">=3.4"
+REQUIRES_PYTHON = ">=3.5"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
@@ -80,7 +80,6 @@ sutools.setup(
         # 'License :: OSI Approved :: Apache Software License',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
