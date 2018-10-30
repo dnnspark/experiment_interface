@@ -9,7 +9,7 @@ python:
   - "3.6"
 
 install: 
-  - pip3 install -e .
+  - pip3 install -q -e .
   - pip3 install pytest flake8
   
 script: 
