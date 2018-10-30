@@ -1,4 +1,4 @@
-from trainer import Hook
+from experiment_interface import Hook
 
 class StopAtStep(Hook):
 

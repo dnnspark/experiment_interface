@@ -26,8 +26,8 @@ flake8:
 	flake8 --ignore=E501,F401,E128,E402,E731,F821 tests
 
 clean:
-	rm -rf `find trainer -name '*.pyc'`
-	rm -rf `find trainer -name __pycache__`
+	rm -rf `find experiment_interface -name '*.pyc'`
+	rm -rf `find experiment_interface -name __pycache__`
 	rm -rf `find tests -name '*.pyc'`
 	rm -rf `find tests -name __pycache__`
 
@@ -45,10 +45,10 @@ ci:
 	pytest tests
 
 dry_sync: clean
-	rsync -anv ${PWD} ${REMOTE_IP}:~/projects/ --exclude='venv/' --exclude='activate' --exclude='trainer.egg-info' --delete
+	rsync -anv ${PWD} ${REMOTE_IP}:~/projects/ --exclude='venv/' --exclude='activate' --exclude='experiment_interface.egg-info' --delete
 
 sync: clean
-	rsync -azP ${PWD} ${REMOTE_IP}:~/projects/ --exclude='venv/' --exclude='activate' --exclude='trainer.egg-info' --delete
+	rsync -azP ${PWD} ${REMOTE_IP}:~/projects/ --exclude='venv/' --exclude='activate' --exclude='experiment_interface.egg-info' --delete
 
 
 .PHONY: venv install_package install_test install_tools intall dev flake8 clean clean_all test ci dry_sync sync

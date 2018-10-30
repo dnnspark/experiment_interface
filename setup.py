@@ -10,9 +10,9 @@ import setuptools as sutools
 VERSION = '0.0.1'
 
 # Package meta-data.
-NAME = 'trainer'
-DESCRIPTION = 'pytorch train framework'
-URL = 'https://github.com/dnnspark/trainer'
+NAME = 'experiment_interface'
+DESCRIPTION = 'pytorch framework for training nets.'
+URL = 'https://github.com/dnnspark/experiment_interface'
 EMAIL = 'dnnsipark@gmail.com'
 AUTHOR = 'Dennis Park'
 REQUIRES_PYTHON = ">=3.5"

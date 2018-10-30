@@ -1,6 +1,6 @@
 import torch
 from torchvision import datasets, transforms
-from trainer import Trainer, StopAtStep
+from experiment_interface import Trainer, StopAtStep
 
 class MyCNN(torch.nn.Module):
 
