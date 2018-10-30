@@ -1,2 +1,2 @@
-# trainer
-pytorch train framework.
+# experiment_interface
+pytorch framework for training nets.
