@@ -24,7 +24,7 @@ import logging
 
 # logging.basicConfig(datefmt='%Y-%m-%d %H:%M:%S')
 
-logging.addLevelName(logging.INFO, '')
+# logging.addLevelName(logging.INFO, '')
 
 formatter = logging.Formatter(
     fmt='%(levelname)s %(asctime)s  %(message)s',
