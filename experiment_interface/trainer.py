@@ -4,7 +4,7 @@ Hooks
 - initialize with pre-trained parameters. 
 - freeze parameters until N step.
 - validate every N step.
-- save model every N step.
+- save net every N step.
 
 hooks schedules:
     - before_loop
@@ -58,7 +58,7 @@ class TrainContext():
 class Trainer():
 
     def __init__(self,
-        model,
+        net,
         train_dataset,
         batch_size,
         loss_fn,
@@ -70,7 +70,7 @@ class Trainer():
 
         self.train_dataset = train_dataset
         self.batch_size = batch_size
-        self.model = model
+        self.net =net 
         self.loss_fn = loss_fn
         self.optimizer = optimizer
         self.num_workers = num_workers
@@ -113,8 +113,8 @@ class Trainer():
             num_workers=self.num_workers, pin_memory=use_cuda)
 
         device = torch.device('cuda') if use_cuda else torch.device('cpu')
-        model = self.model.to(device)
-        model = torch.nn.DataParallel(model)
+        net = self.net.to(device)
+        net = torch.nn.DataParallel(net)
 
         context = TrainContext()
 
@@ -131,7 +131,7 @@ class Trainer():
                     hook.before_step(context)
 
                 images, labels = images.to(device), labels.to(device)
-                prediction = model(images)
+                prediction = net(images)
                 loss = self.loss_fn(prediction, labels)
                 self.optimizer.zero_grad()
                 loss.backward()

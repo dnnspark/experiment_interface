@@ -1,6 +1,7 @@
 import torch
 from torchvision import datasets, transforms
 from experiment_interface import Trainer, StopAtStep
+import tempfile
 
 class MyCNN(torch.nn.Module):
 
@@ -76,12 +77,12 @@ def test_cifar10():
         transforms.ToTensor(),
     ])
 
-    train_dataset = datasets.CIFAR10('./data/', train=True, transform=trnsfrms, download=True)
-
-    val_dataset = datasets.CIFAR10('./data/', train=False, transform=transforms.CenterCrop(28), download=True)
+    cache_dir = tempfile.mkdtemp()
+    train_dataset = datasets.CIFAR10(cache_dir, train=True, transform=trnsfrms, download=True)
+    val_dataset = datasets.CIFAR10(cache_dir, train=False, transform=transforms.CenterCrop(28), download=True)
 
     trainer = Trainer(
-        model = net,
+        net = net,
         train_dataset = train_dataset,
         batch_size = 64,
         loss_fn = torch.nn.CrossEntropyLoss(),
