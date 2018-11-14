@@ -7,6 +7,8 @@ error:
 venv:
 	python3 -m venv ./venv
 	ln -s venv/bin/activate activate
+	. ./venv/bin/activate; \
+	pip3 install -U pip setuptools wheel
 
 install_package:
 	. ./venv/bin/activate; \
@@ -14,17 +16,24 @@ install_package:
 
 install_test:
 	. ./venv/bin/activate; \
-	pip3 install pytest flake8
+	pip3 install -U pytest flake8
 
 install_tools:
 	. ./venv/bin/activate; \
-	pip3 install seaborn scikit-image imageio
+	pip3 install -U seaborn scikit-image imageio
 
 install: venv install_package install_test
  
 dev: venv install_package install_test install_tools
 
+test:
+	pytest tests -s
+
+ci:
+	pytest tests
+
 flake8:
+	flake8 --ignore=E501,F401,E128,E402,E731,F821 experiment_interface
 	flake8 --ignore=E501,F401,E128,E402,E731,F821 tests
 
 clean:
@@ -34,17 +43,10 @@ clean:
 	rm -rf `find tests -name __pycache__`
 
 clean_all: clean
-	rm -rf activate
-	rm -rf venv/
-	rm -rf data/
-	rm -rf `find . -name '*.log'`
 	rm -rf *.egg-info
-
-test:
-	pytest tests -s
-
-ci:
-	pytest tests
+	rm -rf venv/
+	rm -rf activate
+	rm -rf `find . -name '*.log'`
 
 .PHONY: venv install_package install_test install_tools intall dev flake8 clean clean_all test ci dry_sync sync
 
