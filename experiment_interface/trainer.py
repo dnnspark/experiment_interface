@@ -125,7 +125,10 @@ class Trainer():
         while not context.exit_loop:
 
             for batch in train_data_loader:
-                # Assumption: the first element of batch is image batch, the rest are labels
+                # Assumption: 
+                # - the first element of batch is image batch, the rest are labels
+                # - image batch is the only input to the net.
+                # - the remaining tensors are fed into loss function as positional args, following the prediction tensors.
                 assert isinstance(batch, list) or isinstance(batch, tuple)
                 images, labels = batch[0], batch[1:]
 
