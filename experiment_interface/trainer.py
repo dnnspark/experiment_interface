@@ -70,7 +70,7 @@ class Trainer():
 
         self.train_dataset = train_dataset
         self.batch_size = batch_size
-        self.net =net 
+        self.net = net 
         self.loss_fn = loss_fn
         self.optimizer = optimizer
         self.num_workers = num_workers
