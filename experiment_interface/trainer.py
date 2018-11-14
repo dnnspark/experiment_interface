@@ -75,19 +75,22 @@ class Trainer():
         self.optimizer = optimizer
         self.num_workers = num_workers
         self.hooks = hooks
-        self.log_file = log_file
+        self.logger = self.setup_logger(log_file)
 
-    def setup_logger(self):
+    @classmethod
+    def setup_logger(cls, log_file=None):
         logger = logging.getLogger('train_logger')
-        logger.setLevel(logging.DEBUG)
 
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.DEBUG)
-        ch.setFormatter(formatter)
-        logger.addHandler(ch)
+        if len(logger.handlers) == 0:
+            # not set up yet.
+            logger.setLevel(logging.DEBUG)
+            ch = logging.StreamHandler()
+            ch.setLevel(logging.DEBUG)
+            ch.setFormatter(formatter)
+            logger.addHandler(ch)
 
-        if self.log_file is not None:
-            fh = logging.FileHandler(filename=self.log_file)
+        if log_file is not None:
+            fh = logging.FileHandler(filename=log_file)
             fh.setLevel(logging.DEBUG)
             fh.setFormatter(formatter)
             logger.addHandler(fh)
@@ -97,7 +100,7 @@ class Trainer():
 
     def run(self):
 
-        logger = self.setup_logger()
+        logger = self.logger
 
         use_cuda = torch.cuda.is_available()
 

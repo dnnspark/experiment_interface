@@ -2,6 +2,7 @@ import torch
 from torchvision import datasets, transforms
 from experiment_interface import Trainer, StopAtStep
 import tempfile
+import logging
 
 class MyCNN(torch.nn.Module):
 
@@ -71,6 +72,8 @@ def test_cifar10():
 
     net = MyCNN()
 
+    logger = Trainer.setup_logger()
+
     trnsfrms = transforms.Compose([
         transforms.RandomCrop(28),
         transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
@@ -78,6 +81,7 @@ def test_cifar10():
     ])
 
     cache_dir = tempfile.mkdtemp()
+    logger.info('\ncache_dir: %s' % cache_dir) 
     train_dataset = datasets.CIFAR10(cache_dir, train=True, transform=trnsfrms, download=True)
     val_dataset = datasets.CIFAR10(cache_dir, train=False, transform=transforms.CenterCrop(28), download=True)
 
@@ -94,8 +98,3 @@ def test_cifar10():
         )
 
     trainer.run()
-
-
-# if __name__ == '__main__':
-#     test_cifar10()
-
