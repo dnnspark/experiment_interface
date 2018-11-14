@@ -124,7 +124,11 @@ class Trainer():
         # training loop
         while not context.exit_loop:
 
-            for images, labels in train_data_loader:
+            for batch in train_data_loader:
+                # Assumption: the first element of batch is image batch, the rest are labels
+                assert isinstance(batch, list) or isinstance(batch, tuple)
+                images, labels = batch[0], batch[1:]
+
                 context.inc_step()
 
                 for hook in self.hooks:
@@ -132,7 +136,7 @@ class Trainer():
 
                 images, labels = images.to(device), labels.to(device)
                 prediction = net(images)
-                loss = self.loss_fn(prediction, labels)
+                loss = self.loss_fn(prediction, *labels)
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
