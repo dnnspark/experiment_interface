@@ -137,9 +137,12 @@ class Trainer():
                 for hook in self.hooks:
                     hook.before_step(context)
 
-                images, labels = images.to(device), labels.to(device)
-                prediction = net(images)
-                loss = self.loss_fn(prediction, *labels)
+                images = images.to(device)
+                labels = [label.to(device) for label in labels]
+                predictions = net(images)
+                if not (isinstance(predictions, list) or isinstance(predictions, tuple)):
+                    predictions = [predictions]
+                loss = self.loss_fn(*predictions, *labels)
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
