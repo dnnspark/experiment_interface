@@ -1,6 +1,6 @@
 import torch
 from torchvision import datasets, transforms
-from experiment_interface import Trainer, StopAtStep
+from experiment_interface import Trainer, StopAtStep, SaveNetAtLast
 import tempfile
 import logging
 
@@ -9,7 +9,7 @@ class MyCNN(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.conv_layers = torch.nn.Sequential(
+        self.conv_feat = torch.nn.Sequential(
             torch.nn.Conv2d(3, 64, 5, 2, 2),
             torch.nn.BatchNorm2d(64),
             torch.nn.ReLU6(),
@@ -47,7 +47,7 @@ class MyCNN(torch.nn.Module):
             torch.nn.ReLU6(),
         )
 
-        self.fc_layers = torch.nn.Sequential(
+        self.mlp = torch.nn.Sequential(
             torch.nn.Conv2d(256, 256*4*4, 4, 1, 0),
             torch.nn.BatchNorm2d(256*4*4),
             torch.nn.ReLU6(),
@@ -61,8 +61,8 @@ class MyCNN(torch.nn.Module):
     def forward(self, images):
 
         x = images
-        x = self.conv_layers(x)
-        x = self.fc_layers(x)
+        x = self.conv_feat(x)
+        x = self.mlp(x)
         x = torch.squeeze(x)
 
         return x
@@ -71,8 +71,9 @@ class MyCNN(torch.nn.Module):
 def test_cifar10():
 
     net = MyCNN()
+    # import pdb; pdb.set_trace()
 
-    logger = Trainer.setup_logger()
+    logger = Trainer.get_logger()
 
     trnsfrms = transforms.Compose([
         transforms.RandomCrop(28),
@@ -81,9 +82,12 @@ def test_cifar10():
     ])
 
     cache_dir = tempfile.mkdtemp()
-    logger.info('\ncache_dir: %s' % cache_dir) 
+    logger.info('cache_dir: %s' % cache_dir) 
     train_dataset = datasets.CIFAR10(cache_dir, train=True, transform=trnsfrms, download=True)
     val_dataset = datasets.CIFAR10(cache_dir, train=False, transform=transforms.CenterCrop(28), download=True)
+
+    result_dir = tempfile.mkdtemp()
+    logger.info('result_dir: %s' % result_dir) 
 
     trainer = Trainer(
         net = net,
@@ -92,7 +96,7 @@ def test_cifar10():
         loss_fn = torch.nn.CrossEntropyLoss(),
         optimizer = torch.optim.Adam(net.parameters(), lr=0.003 ),
         num_workers = 30,
-        hooks = [StopAtStep(10)],
+        hooks = [StopAtStep(10), SaveNetAtLast(result_dir)],
         log_file='train.log',
 
         )

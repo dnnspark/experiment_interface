@@ -33,10 +33,11 @@ formatter = logging.Formatter(
 
 class TrainContext():
 
-    def __init__(self):
+    def __init__(self, net):
         '''
         A hook can set 'exit_loop' to True to terimnate the training loop.
         '''
+        self.net = net
         self.step = 0
         self.exit_loop = False
         self.context = {}
@@ -75,10 +76,10 @@ class Trainer():
         self.optimizer = optimizer
         self.num_workers = num_workers
         self.hooks = hooks
-        self.logger = self.setup_logger(log_file)
+        self.logger = self.get_logger(log_file)
 
     @classmethod
-    def setup_logger(cls, log_file=None):
+    def get_logger(cls, log_file=None):
         logger = logging.getLogger('train_logger')
 
         if len(logger.handlers) == 0:
@@ -118,8 +119,9 @@ class Trainer():
         device = torch.device('cuda') if use_cuda else torch.device('cpu')
         net = self.net.to(device)
         net = torch.nn.DataParallel(net)
+        net.train()
 
-        context = TrainContext()
+        context = TrainContext(net)
 
         for hook in self.hooks:
             hook.before_loop(context)
