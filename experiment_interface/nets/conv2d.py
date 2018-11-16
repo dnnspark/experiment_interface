@@ -49,6 +49,3 @@ class Conv2D(nn.Module):
             x = self.act_fn(x)
 
         return x
-
-
-
