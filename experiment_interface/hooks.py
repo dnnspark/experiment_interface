@@ -1,6 +1,8 @@
 import os
 import torch
-from experiment_interface import Hook
+from experiment_interface import Hook, Trainer
+
+logger = Trainer.get_logger()
 
 class StopAtStep(Hook):
 
@@ -13,15 +15,19 @@ class StopAtStep(Hook):
 
 class SaveNetAtLast(Hook):
 
-    def __init__(self, cache_dir):
-        self.cache_dir = cache_dir
+    def __init__(self, net_name=None):
+        self.net_name = net_name  or 'net'
+
+    def before_loop(self, context):
+        self.cache_dir = context.trainer.result_dir
 
     def after_loop(self, context):
         step = context.step
         if step % 1000 == 0:
-            filename = 'net-%03dk.pth' % (step//1000)
+            filename = '%s-%03dk.pth' % (self.net_name, step//1000)
         else:
             assert step < 10000
-            filename = 'net-%04d.pth' % step
+            filename = '%s-%04d.pth' % (self.net_name, step)
         path_to_save = os.path.join(self.cache_dir, filename)
+        logger.info('Saving net: %s' % path_to_save)
         torch.save(context.net.state_dict(), path_to_save)

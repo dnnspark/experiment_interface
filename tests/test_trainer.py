@@ -96,7 +96,7 @@ def test_cifar10():
         loss_fn = torch.nn.CrossEntropyLoss(),
         optimizer = torch.optim.Adam(net.parameters(), lr=0.003 ),
         num_workers = 30,
-        hooks = [StopAtStep(10), SaveNetAtLast(result_dir)],
+        hooks = [StopAtStep(10), SaveNetAtLast(net_name='mycnn')],
         log_file='train.log',
 
         )

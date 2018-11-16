@@ -21,6 +21,8 @@ Trainer
 
 import torch
 import logging
+import tempfile
+import os
 
 # logging.basicConfig(datefmt='%Y-%m-%d %H:%M:%S')
 
@@ -33,11 +35,13 @@ formatter = logging.Formatter(
 
 class TrainContext():
 
-    def __init__(self, net):
+    def __init__(self, net, trainer):
         '''
         A hook can set 'exit_loop' to True to terimnate the training loop.
         '''
         self.net = net
+        self.trainer = trainer
+
         self.step = 0
         self.exit_loop = False
         self.context = {}
@@ -67,6 +71,7 @@ class Trainer():
         num_workers = None,
         hooks = [],
         log_file = None,
+        result_dir = None,
         ):
 
         self.train_dataset = train_dataset
@@ -76,7 +81,8 @@ class Trainer():
         self.optimizer = optimizer
         self.num_workers = num_workers
         self.hooks = hooks
-        self.logger = self.get_logger(log_file)
+        self.result_dir = result_dir or tempfile.mkdtemp()
+        self.logger = self.get_logger(os.path.join(self.result_dir, log_file))
 
     @classmethod
     def get_logger(cls, log_file=None):
@@ -121,7 +127,7 @@ class Trainer():
         net = torch.nn.DataParallel(net)
         net.train()
 
-        context = TrainContext(net)
+        context = TrainContext(net, self)
 
         for hook in self.hooks:
             hook.before_loop(context)
