@@ -4,6 +4,9 @@ error:
 	@echo "Empty target is not allowed. Choose one of the targets in the Makefile."
 	@exit 2
 
+apt_install:
+	sudo apt-get install python3-venv python3-pip
+
 venv:
 	python3 -m venv ./venv
 	ln -s venv/bin/activate activate
@@ -59,9 +62,9 @@ setup:
 	ssh ${REMOTE_IP} "sudo apt-get install python3-venv"
 
 dry_sync: clean
-	rsync -anv ${PWD} ${REMOTE_IP}:~/projects/ --exclude-from='~/projects/rsync_exclude.txt'
+	rsync -anv ${PWD} ${REMOTE_IP}:~/projects/ --exclude=venv/ --exclude=activate --exclude-from='${HOME}/projects/scripts/rsync_exclude.txt'
 
 sync: clean
-	rsync -azP ${PWD} ${REMOTE_IP}:~/projects/ --exclude-from='~/projects/rsync_exclude.txt'
+	rsync -azP ${PWD} ${REMOTE_IP}:~/projects/ --exclude=venv/ --exclude=activate --exclude-from='${HOME}/projects/scripts/rsync_exclude.txt'
 
 
