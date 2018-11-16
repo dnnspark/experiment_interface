@@ -21,7 +21,6 @@ Trainer
 
 import torch
 import logging
-import tempfile
 import os
 
 # logging.basicConfig(datefmt='%Y-%m-%d %H:%M:%S')
@@ -68,10 +67,10 @@ class Trainer():
         batch_size,
         loss_fn,
         optimizer,
+        result_dir,
         num_workers = None,
         hooks = [],
         log_file = None,
-        result_dir = None,
         ):
 
         self.train_dataset = train_dataset
@@ -79,9 +78,9 @@ class Trainer():
         self.net = net 
         self.loss_fn = loss_fn
         self.optimizer = optimizer
+        self.result_dir = result_dir
         self.num_workers = num_workers
         self.hooks = hooks
-        self.result_dir = result_dir or tempfile.mkdtemp()
         self.logger = self.get_logger(os.path.join(self.result_dir, log_file))
 
     @classmethod

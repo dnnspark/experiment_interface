@@ -1,77 +1,49 @@
 import torch
 from torchvision import datasets, transforms
-from experiment_interface import Trainer, StopAtStep, SaveNetAtLast
 import tempfile
 import logging
+from experiment_interface import Trainer, StopAtStep, SaveNetAtLast
+from experiment_interface.nets import Conv2D
 
 class MyCNN(torch.nn.Module):
 
     def __init__(self):
         super().__init__()
 
-        self.conv_feat = torch.nn.Sequential(
-            torch.nn.Conv2d(3, 64, 5, 2, 2),
-            torch.nn.BatchNorm2d(64),
-            torch.nn.ReLU6(),
+        self.feature_extractor = torch.nn.Sequential(
+            Conv2D(3,    64, 5, 2, use_batchnorm=True, act_fn='relu'),
 
-            torch.nn.Conv2d(64, 64, 3, 1, 1),
-            torch.nn.BatchNorm2d(64),
-            torch.nn.ReLU6(),
+            Conv2D(64,   64, 3, 1, use_batchnorm=True, act_fn='relu'),
+            Conv2D(64,   64, 3, 1, use_batchnorm=True, act_fn='relu'),
+            Conv2D(64,  128, 3, 2, use_batchnorm=True, act_fn='relu'),
 
-            torch.nn.Conv2d(64, 64, 3, 1, 1),
-            torch.nn.BatchNorm2d(64),
-            torch.nn.ReLU6(),
+            Conv2D(128, 128, 3, 1, use_batchnorm=True, act_fn='relu'),
+            Conv2D(128, 128, 3, 1, use_batchnorm=True, act_fn='relu'),
+            Conv2D(128, 256, 3, 2, use_batchnorm=True, act_fn='relu'),
 
-            torch.nn.Conv2d(64, 128, 3, 2, 1),
-            torch.nn.BatchNorm2d(128),
-            torch.nn.ReLU6(),
-
-            torch.nn.Conv2d(128, 128, 3, 1, 1),
-            torch.nn.BatchNorm2d(128),
-            torch.nn.ReLU6(),
-
-            torch.nn.Conv2d(128, 128, 3, 1, 1),
-            torch.nn.BatchNorm2d(128),
-            torch.nn.ReLU6(),
-
-            torch.nn.Conv2d(128, 256, 3, 2, 1),
-            torch.nn.BatchNorm2d(256),
-            torch.nn.ReLU6(),
-
-            torch.nn.Conv2d(256, 256, 3, 1, 1),
-            torch.nn.BatchNorm2d(256),
-            torch.nn.ReLU6(),
-
-            torch.nn.Conv2d(256, 256, 3, 1, 1), # (256, 4, 4)
-            torch.nn.BatchNorm2d(256),
-            torch.nn.ReLU6(),
-        )
+            Conv2D(256, 256, 3, 1, use_batchnorm=True, act_fn='relu'),
+            Conv2D(256, 256, 3, 1, use_batchnorm=True, act_fn='relu'), # (256, 4, 4)
+            )
 
         self.mlp = torch.nn.Sequential(
-            torch.nn.Conv2d(256, 256*4*4, 4, 1, 0),
-            torch.nn.BatchNorm2d(256*4*4),
-            torch.nn.ReLU6(),
-            torch.nn.Conv2d(256*4*4, 256, 1, 1, 0),
-            torch.nn.BatchNorm2d(256),
-            torch.nn.ReLU6(),
-            torch.nn.Conv2d(256, 10, 1, 1, 0),
+            Conv2D(256, 256*4, 4, 1, padding=0),
+            Conv2D(256*4, 128, 1, 1, padding=0),
+            Conv2D(128, 10, 1, 1, padding=0),
         )
 
 
     def forward(self, images):
 
         x = images
-        x = self.conv_feat(x)
+        x = self.feature_extractor(x)
         x = self.mlp(x)
         x = torch.squeeze(x)
 
         return x
 
-
 def test_cifar10():
 
     net = MyCNN()
-    # import pdb; pdb.set_trace()
 
     logger = Trainer.get_logger()
 
@@ -97,6 +69,7 @@ def test_cifar10():
         optimizer = torch.optim.Adam(net.parameters(), lr=0.003 ),
         num_workers = 30,
         hooks = [StopAtStep(10), SaveNetAtLast(net_name='mycnn')],
+        result_dir = result_dir,
         log_file='train.log',
 
         )
