@@ -62,9 +62,9 @@ setup:
 	ssh ${REMOTE_IP} "sudo apt-get install python3-venv"
 
 dry_sync: clean
-	rsync -anv ${PWD} ${REMOTE_IP}:~/projects/ --exclude=venv/ --exclude=activate --exclude-from='${HOME}/projects/scripts/rsync_exclude.txt'
+	rsync -anv ${PWD} ${REMOTE_IP}:~/projects/ --delete --exclude=venv/ --exclude=activate --exclude-from='${HOME}/projects/scripts/rsync_exclude.txt'
 
 sync: clean
-	rsync -azP ${PWD} ${REMOTE_IP}:~/projects/ --exclude=venv/ --exclude=activate --exclude-from='${HOME}/projects/scripts/rsync_exclude.txt'
+	rsync -azP ${PWD} ${REMOTE_IP}:~/projects/ --delete --exclude=venv/ --exclude=activate --exclude-from='${HOME}/projects/scripts/rsync_exclude.txt'
 
 

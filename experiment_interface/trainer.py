@@ -71,6 +71,7 @@ class Trainer():
         num_workers = None,
         hooks = [],
         log_file = None,
+        log_interval = 1,
         ):
 
         self.train_dataset = train_dataset
@@ -82,6 +83,7 @@ class Trainer():
         self.num_workers = num_workers
         self.hooks = hooks
         self.logger = self.get_logger(os.path.join(self.result_dir, log_file))
+        self.log_interval = log_interval
 
     @classmethod
     def get_logger(cls, log_file=None):
@@ -152,12 +154,23 @@ class Trainer():
                 predictions = net(images)
                 if not (isinstance(predictions, list) or isinstance(predictions, tuple)):
                     predictions = [predictions]
-                loss = self.loss_fn(*predictions, *labels)
+                losses = self.loss_fn(*predictions, *labels)
+                # Assumption:
+                # - self.loss_fn() returns either a 0-dim (scalar) Tensor, or a list/tuple of the following form
+                # - [total_loss, (loss_name_1, loss1), (loss_name_2, loss2), ...]
+                if isisntance(losses, list) or isinstance(losses, tuple):
+                    total_loss, other_losses = losses[0], losses[1:]
+                else:
+                    assert losses.dim() == 0 
+                    total_loss = losses
+                    other_losses = []
+
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
 
-                logger.info('step=%d | loss=%.4f' % (context.step, loss.detach()))
+                if context.step % self.log_interval == 0:
+                    logger.info('step=%d | loss=%.4f' % (context.step, total_loss.detach()))
 
                 for hook in self.hooks:
                     hook.after_step(context)

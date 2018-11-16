@@ -69,6 +69,8 @@ def test_cifar10():
         optimizer = torch.optim.Adam(net.parameters(), lr=0.003 ),
         num_workers = 30,
         hooks = [StopAtStep(10), SaveNetAtLast(net_name='mycnn')],
+        # num_workers = 60,
+        # hooks = [StopAtStep(30000), SaveNetAtLast(net_name='mycnn')],
         result_dir = result_dir,
         log_file='train.log',
 
