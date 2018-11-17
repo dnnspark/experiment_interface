@@ -64,6 +64,8 @@ def test_cifar10():
     trainer = Trainer(
         net = net,
         train_dataset = train_dataset,
+        val_datasets = [val_dataset],
+        val_interval = 5,
         batch_size = 64,
         loss_fn = torch.nn.CrossEntropyLoss(),
         optimizer = torch.optim.Adam(net.parameters(), lr=0.003 ),
