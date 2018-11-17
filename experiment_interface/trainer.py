@@ -158,7 +158,7 @@ class Trainer():
                 # Assumption:
                 # - self.loss_fn() returns either a 0-dim (scalar) Tensor, or a list/tuple of the following form
                 # - [total_loss, (loss_name_1, loss1), (loss_name_2, loss2), ...]
-                if isisntance(losses, list) or isinstance(losses, tuple):
+                if isinstance(losses, list) or isinstance(losses, tuple):
                     total_loss, other_losses = losses[0], losses[1:]
                 else:
                     assert losses.dim() == 0 
@@ -166,7 +166,7 @@ class Trainer():
                     other_losses = []
 
                 self.optimizer.zero_grad()
-                loss.backward()
+                total_loss.backward()
                 self.optimizer.step()
 
                 if context.step % self.log_interval == 0:
