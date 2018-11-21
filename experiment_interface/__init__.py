@@ -1,2 +1,2 @@
-from .trainer import Trainer, Hook
-from .hooks import StopAtStep, SaveNetAtLast
+from .trainer import Trainer
+from .hooks import Hook
