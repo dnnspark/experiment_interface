@@ -1,13 +1,31 @@
 import os
 import torch
-from experiment_interface import Hook, Trainer
+from experiment_interface.logger import get_train_logger
 
-logger = Trainer.get_logger()
+logger = get_train_logger()
+
+class Hook():
+
+    def before_loop(self, context):
+        pass
+
+    def before_step(self, context):
+        pass
+
+    def after_step(self, context):
+        pass
+
+    def after_loop(self, context):
+        pass
 
 class StopAtStep(Hook):
 
     def __init__(self, stop_at):
         self.stop_at = stop_at
+
+    def before_loop(self, context):
+        if context.debug:
+            self.stop_at = 30
 
     def after_step(self, context):
         if context.step == self.stop_at:
@@ -30,4 +48,4 @@ class SaveNetAtLast(Hook):
             filename = '%s-%04d.pth' % (self.net_name, step)
         path_to_save = os.path.join(self.cache_dir, filename)
         logger.info('Saving net: %s' % path_to_save)
-        torch.save(context.net.state_dict(), path_to_save)
+        torch.save(context.trainer.net.state_dict(), path_to_save)
