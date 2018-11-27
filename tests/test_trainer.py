@@ -146,7 +146,8 @@ def test_cifar10():
         ])
 
     # cache_dir = tempfile.mkdtemp()
-    cache_dir = '/var/folders/_1/9y4khvtd4sbbpf0wz_8fzlq00000gn/T/tmpktj6vddq'
+    # cache_dir = '/var/folders/_1/9y4khvtd4sbbpf0wz_8fzlq00000gn/T/tmpktj6vddq'
+    cache_dir = '/cluster/storage/dpark/cifar10/'
     logger.info('cache_dir: %s' % cache_dir) 
     train_dataset = Cifar10TrainDataset(cache_dir, transform=train_trnsfrms, download=True)
     val_dataset = Cifar10ValDataset(cache_dir, transform=val_trnsfrms, download=False)
@@ -181,5 +182,5 @@ def test_cifar10():
 
     trainer.register_hook(accuracy_valhook)
 
-    trainer.run(debug=True)
-    # trainer.run(debug=False)
+    # trainer.run(debug=True)
+    trainer.run(debug=False)
