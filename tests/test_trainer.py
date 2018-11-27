@@ -9,8 +9,11 @@ from experiment_interface.logger import get_train_logger
 from experiment_interface.hooks import StopAtStep, SaveNetAtLast
 from experiment_interface.nets import Conv2D
 from experiment_interface.evaluator.metrics import ClassificationAccuracy
+from experiment_interface.hooks import ValidationHook
 
 class MyCNN(torch.nn.Module):
+
+    _name = 'mycnn'
 
     def __init__(self):
         super().__init__()
@@ -151,10 +154,6 @@ def test_cifar10():
     result_dir = tempfile.mkdtemp()
     logger.info('result_dir: %s' % result_dir) 
 
-    class_acc_metric = ClassificationAccuracy(category_names = CATEGORY_NAMES)
-    accuracy_validator = ('mean_acc', val_dataset, most_probable_class, class_acc_metric)
-    loss_validator = ('val_loss', val_dataset)
-
     trainer = Trainer(
         net = net,
         train_dataset = train_dataset,
@@ -164,9 +163,21 @@ def test_cifar10():
         result_dir = result_dir,
         log_file='train.log',
         num_workers = 30,
-        hooks = [StopAtStep(30000), SaveNetAtLast(net_name='mycnn')],
-        validators = [ loss_validator, accuracy_validator ],
-        val_interval = 100,
+        max_step = 30000,
+        val_dataset = val_dataset,
+        val_interval = 500,
         )
 
+    class_acc_metric = ClassificationAccuracy(category_names = CATEGORY_NAMES)
+    accuracy_valhook = ValidationHook(
+        dataset = val_dataset, 
+        interval = 500, 
+        name = 'val_acc', 
+        predict_fn = most_probable_class, 
+        metric = class_acc_metric,
+        save_best=False)
+
+    trainer.register_hook(accuracy_valhook)
+
     trainer.run(debug=True)
+    # trainer.run(debug=False)

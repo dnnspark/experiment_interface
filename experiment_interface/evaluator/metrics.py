@@ -4,6 +4,14 @@ import numpy as np
 class Metric():
     '''
     '''
+
+    @property
+    def larger_is_better(self):
+        '''
+        True or False
+        '''
+        raise NotImplementedError()
+
     def initialize(self):
         raise NotImplementedError()
 
@@ -24,6 +32,9 @@ class ClassificationAccuracy(Metric):
         ):
         self.num_categories = len(category_names)
 
+    @property
+    def larger_is_better(self):
+        return True
 
     def initialize(self):
 
@@ -55,6 +66,10 @@ class LossMetric(Metric):
 
     def __init__(self, loss_fn):
         self.loss_fn = loss_fn
+
+    @property
+    def larger_is_better(self):
+        return False
 
     def initialize(self):
 
