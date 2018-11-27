@@ -21,7 +21,7 @@ Trainer
 
 import torch
 import os
-from experiment_interface.hooks import ValidationHook
+from experiment_interface.hooks import ValidationHook, StopAtStep
 from experiment_interface.logger import get_train_logger
 from experiment_interface.evaluator.metrics import Metric
 
@@ -51,40 +51,6 @@ class TrainContext():
         '''
         self.context.update(named_item)
 
-def make_valhook_args(validator_spec, idx):
-    '''
-    num_args = 1 -> (dataset)
-    num_args = 2 -> (name, dataset) 
-    num_args = 3 -> (dataset, predict_fn, metric)
-    num_args = 4 -> (name, dataset, predict_fn, metric)
-    '''
-
-    spec = validator_spec
-
-    if isinstance(spec, torch.utils.data.Dataset):
-        name = 'val%d' % idx 
-        dataset = spec 
-        predict_fn, metric = None, None
-    elif len(spec) == 2 and \
-        isinstance(spec[0], str) and isinstance(spec[1], torch.utils.data.Dataset):
-        name, dataset = spec 
-        predict_fn, metric = None, None
-    elif len(spec) == 3 and \
-        isinstance(spec[0], torch.utils.data.Dataset) and callable(spec[1]) and \
-        isinstance(spec[2], Metric):
-        name = 'val%d' % idx 
-        dataset, predict_fn, metric = spec 
-    elif len(spec) == 4 and \
-        isinstance(spec[0], str) and \
-        isinstance(spec[1], torch.utils.data.Dataset) and callable(spec[2]) and \
-        isinstance(spec[3], Metric):
-        name, dataset, predict_fn, metric = spec 
-    else:
-        raise ValueError('Invalid format for \'val_dataset\'.')
-
-    return name, dataset, predict_fn, metric
-
-
 class Trainer():
 
     def __init__(self,
@@ -95,10 +61,11 @@ class Trainer():
         optimizer,
         result_dir,
         log_file,
+        max_step = None,
         log_interval = 1,
         num_workers = None,
         hooks = [],
-        validators = [],
+        val_dataset = None,
         val_interval = None,
         ):
 
@@ -137,30 +104,31 @@ class Trainer():
 
         self.hooks = hooks
 
-        if (len(validators) == 0) != (val_interval is None):
-            raise ValueError('\'validators\' must be empty iff \'val_interval\' is None.')
+        if val_dataset is not None:
 
-        if len(validators) > 0:
-            # val_hooks = [ValidationHook(dataset, loss_fn, val_interval, batch_size, num_workers) for dataset in validators]
-            val_hooks = []
-            for k, validator_spec in enumerate(validators):
-                name, dataset, predict_fn, metric = make_valhook_args(validator_spec, k)
-                val_hooks.append( ValidationHook(dataset, val_interval, name, predict_fn, metric) )
+            if val_interval is None:
+                raise ValueError('\'val_interval\' must be not None, if val_dataset is not None.')
+
+            if isinstance(val_dataset, torch.utils.data.Dataset):
+                name = 'val'
+                dataset = val_dataset 
+                # predict_fn, metric = None, None
+            elif len(val_dataset) == 2 and \
+                isinstance(val_dataset[0], str) and isinstance(val_dataset[1], torch.utils.data.Dataset):
+                name, dataset = val_dataset 
+            else:
+                raise ValueError('Invalid format for \'val_dataset\'.')
+
+            val_hook = ValidationHook(dataset, val_interval, name, save_best=True)
 
 
-                # if len(named_val_dataset) == 2 and \
-                #     isinstance(named_val_dataset[0], str) and isinstance(named_val_dataset[1], torch.utils.data.Dataset):
-                #     name, dataset = named_val_dataset
-                # else:
-                #     assert isinstance(named_val_dataset, torch.utils.data.Dataset)
-                #     name = 'val%d' % k
-                #     dataset = named_val_dataset
+            self.hooks += [val_hook]
 
-                # val_hooks.append( ValidationHook(dataset, val_interval, name) )
+        if max_step is not None:
+            self.hooks += [StopAtStep(max_step)]
 
-            self.hooks += val_hooks
-
-        self.val_interval = val_interval
+    def register_hook(self, hook):
+        self.hooks += [hook]
 
     def run(self, debug=False):
 
