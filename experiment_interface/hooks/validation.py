@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import os
 from experiment_interface.hooks import Hook
+from experiment_interface.hooks.scalar_viz import Row
 from experiment_interface.evaluator import Evaluator
 from experiment_interface.evaluator.metrics import LossMetric
 from experiment_interface.logger import get_train_logger
@@ -59,13 +60,16 @@ class ValidationHook(Hook):
 
             score = evaluator.run()
             try:
-                score = score.detach().cpu()
+                score = score.detach().cpu().numpy()
             except AttributeError:
                 # score may be not torch.Tensor                
                 pass
 
             logger = get_train_logger()
             logger.info('step=%d | VAL | %s=%.4f' % (context.step, self.name, score) )
+            scalar_logger = context.trainer.scalar_logger
+            if scalar_logger is not None:
+                scalar_logger.append( Row(context.step, self.name, score) )
 
             if self.save_best and ( self.larger_is_better == (score > self.best_metric) ):
                 # save net

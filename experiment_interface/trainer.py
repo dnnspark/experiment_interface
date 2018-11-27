@@ -21,7 +21,8 @@ Trainer
 
 import torch
 import os
-from experiment_interface.hooks import ValidationHook, StopAtStep
+from experiment_interface.hooks import ValidationHook, StopAtStep, ScalarLogger
+from experiment_interface.hooks.scalar_viz import Row
 from experiment_interface.logger import get_train_logger
 from experiment_interface.evaluator.metrics import Metric
 
@@ -61,6 +62,7 @@ class Trainer():
         optimizer,
         result_dir,
         log_file,
+        scalar_log_file = None,
         max_step = None,
         log_interval = 1,
         num_workers = None,
@@ -110,7 +112,7 @@ class Trainer():
                 raise ValueError('\'val_interval\' must be not None, if val_dataset is not None.')
 
             if isinstance(val_dataset, torch.utils.data.Dataset):
-                name = 'val'
+                name = 'val_loss'
                 dataset = val_dataset 
                 # predict_fn, metric = None, None
             elif len(val_dataset) == 2 and \
@@ -122,10 +124,21 @@ class Trainer():
             val_hook = ValidationHook(dataset, val_interval, name, save_best=True)
 
 
-            self.hooks += [val_hook]
+            self.hooks.append( val_hook )
 
         if max_step is not None:
-            self.hooks += [StopAtStep(max_step)]
+            self.hooks.append( StopAtStep(max_step) )
+
+        self.scalar_logger = None
+        if scalar_log_file is not None:
+            if not scalar_log_file.endswith('.csv'):
+                raise ValueError('Scalar log file must have .csv extension.')
+
+            scalar_log_file = os.path.join(result_dir, scalar_log_file)
+            scalar_logger = ScalarLogger(scalar_log_file)
+            self.hooks.append(scalar_logger)
+            self.scalar_logger = scalar_logger
+
 
     def register_hook(self, hook):
         self.hooks += [hook]
@@ -133,6 +146,8 @@ class Trainer():
     def run(self, debug=False):
 
         logger = self.logger
+        if debug:
+            self.log_interval = 1
 
         train_data_loader = torch.utils.data.DataLoader(
             self.train_dataset, batch_size=self.batch_size, drop_last=True, shuffle=True, 
@@ -195,7 +210,10 @@ class Trainer():
                 self.optimizer.step()
 
                 if context.step % self.log_interval == 0:
-                    logger.info('step=%d | total_loss=%.4f' % (context.step, total_loss.detach()))
+                    _total_loss = total_loss.detach().cpu().numpy()
+                    logger.info('step=%d | total_loss=%.4f' % (context.step, _total_loss))
+                    if self.scalar_logger is not None:
+                        self.scalar_logger.append( Row(context.step, 'batch_loss', _total_loss) )
 
                 for hook in self.hooks:
                     hook.after_step(context)

@@ -145,8 +145,8 @@ def test_cifar10():
         transforms.ToTensor(),
         ])
 
-    cache_dir = tempfile.mkdtemp()
-    # cache_dir = '/var/folders/_1/9y4khvtd4sbbpf0wz_8fzlq00000gn/T/tmpktj6vddq'
+    # cache_dir = tempfile.mkdtemp()
+    cache_dir = '/var/folders/_1/9y4khvtd4sbbpf0wz_8fzlq00000gn/T/tmpktj6vddq'
     logger.info('cache_dir: %s' % cache_dir) 
     train_dataset = Cifar10TrainDataset(cache_dir, transform=train_trnsfrms, download=True)
     val_dataset = Cifar10ValDataset(cache_dir, transform=val_trnsfrms, download=False)
@@ -162,6 +162,8 @@ def test_cifar10():
         optimizer = torch.optim.Adam(net.parameters(), lr=0.003 ),
         result_dir = result_dir,
         log_file='train.log',
+        scalar_log_file = 'train_record.csv',
+        log_interval = 10,
         num_workers = 30,
         max_step = 30000,
         val_dataset = val_dataset,
