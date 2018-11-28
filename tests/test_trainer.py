@@ -65,7 +65,7 @@ class Cifar10TrainDataset(Dataset):
 
     def __init__(self, root, transform=None, target_transform=None, download=False):
         cifar10_train_dataset = datasets.CIFAR10(root, True, transform, target_transform, download)
-        self.dataset = torch.utils.data.Subset(cifar10_train_dataset, np.arange(0,49000))
+        self.dataset = torch.utils.data.Subset(cifar10_train_dataset, np.arange(0,49600))
 
     def __getitem__(self, index):
         image, label = self.dataset[index]
@@ -84,7 +84,7 @@ class Cifar10ValDataset(Dataset):
 
     def __init__(self, root, transform=None, target_transform=None, download=False):
         cifar10_train_dataset = datasets.CIFAR10(root, True, transform, target_transform, download)
-        self.dataset = torch.utils.data.Subset(cifar10_train_dataset, np.arange(49000,50000))
+        self.dataset = torch.utils.data.Subset(cifar10_train_dataset, np.arange(49600,50000))
 
     def __getitem__(self, index):
         image, label = self.dataset[index]
@@ -162,19 +162,17 @@ def test_cifar10():
         loss_fn = torch.nn.CrossEntropyLoss(),
         optimizer = torch.optim.Adam(net.parameters(), lr=0.003 ),
         result_dir = result_dir,
-        log_file='train.log',
-        scalar_log_file = 'train_record.csv',
         log_interval = 10,
         num_workers = 30,
         max_step = 30000,
         val_dataset = val_dataset,
-        val_interval = 500,
+        val_interval = 200,
         )
 
     class_acc_metric = ClassificationAccuracy(category_names = CATEGORY_NAMES)
     accuracy_valhook = ValidationHook(
         dataset = val_dataset, 
-        interval = 500, 
+        interval = 200, 
         name = 'val_acc', 
         predict_fn = most_probable_class, 
         metric = class_acc_metric,

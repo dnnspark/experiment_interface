@@ -21,8 +21,8 @@ Trainer
 
 import torch
 import os
-from experiment_interface.hooks import ValidationHook, StopAtStep, ScalarLogger
-from experiment_interface.hooks.scalar_viz import Row
+from experiment_interface.hooks import ValidationHook, StopAtStep, ScalarRecorder, VisdomRunner
+from experiment_interface.hooks.scalar_recorder import Row
 from experiment_interface.logger import get_train_logger
 from experiment_interface.evaluator.metrics import Metric
 
@@ -61,8 +61,8 @@ class Trainer():
         loss_fn,
         optimizer,
         result_dir,
-        log_file,
-        scalar_log_file = None,
+        log_file='train.log',
+        scalar_record_file = 'train_record.csv',
         max_step = None,
         log_interval = 1,
         num_workers = None,
@@ -129,15 +129,16 @@ class Trainer():
         if max_step is not None:
             self.hooks.append( StopAtStep(max_step) )
 
-        self.scalar_logger = None
-        if scalar_log_file is not None:
-            if not scalar_log_file.endswith('.csv'):
-                raise ValueError('Scalar log file must have .csv extension.')
+        if not scalar_record_file.endswith('.csv'):
+            raise ValueError('Scalar log file must have .csv extension.')
 
-            scalar_log_file = os.path.join(result_dir, scalar_log_file)
-            scalar_logger = ScalarLogger(scalar_log_file)
-            self.hooks.append(scalar_logger)
-            self.scalar_logger = scalar_logger
+        scalar_record_file = os.path.join(result_dir, scalar_record_file)
+        scalar_recorder = ScalarRecorder(scalar_record_file)
+        self.hooks.append(scalar_recorder)
+        self.scalar_recorder = scalar_recorder
+
+        viz_runner = VisdomRunner(scalar_record_file)
+        self.hooks.append(viz_runner)
 
 
     def register_hook(self, hook):
@@ -212,8 +213,8 @@ class Trainer():
                 if context.step % self.log_interval == 0:
                     _total_loss = total_loss.detach().cpu().numpy()
                     logger.info('step=%d | total_loss=%.4f' % (context.step, _total_loss))
-                    if self.scalar_logger is not None:
-                        self.scalar_logger.append( Row(context.step, 'batch_loss', _total_loss) )
+                    if self.scalar_recorder is not None:
+                        self.scalar_recorder.append( Row(context.step, 'batch_loss', _total_loss) )
 
                 for hook in self.hooks:
                     hook.after_step(context)

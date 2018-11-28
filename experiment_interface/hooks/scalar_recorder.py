@@ -8,12 +8,12 @@ from experiment_interface.logger import get_train_logger
 columns = ['step', 'type', 'value']
 Row = collections.namedtuple('Row', ' '.join(columns))
 
-class ScalarLogger(Hook):
+class ScalarRecorder(Hook):
     '''
     Log real-valued number during training.
     '''
 
-    def __init__(self, log_file, flush_interval=1000):
+    def __init__(self, log_file, flush_interval=100):
         assert log_file.endswith('.csv')
         self.log_file = log_file
         self.flush_interval = flush_interval
