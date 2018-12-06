@@ -23,6 +23,7 @@ import torch
 import os
 from experiment_interface.hooks import ValidationHook, StopAtStep, ScalarRecorder, VisdomRunner
 from experiment_interface.hooks.scalar_recorder import Row
+from experiment_interface.hooks.viz_runner import plot_trainval_loss
 from experiment_interface.logger import get_train_logger
 from experiment_interface.evaluator.metrics import Metric
 
@@ -134,15 +135,23 @@ class Trainer():
 
         scalar_record_file = os.path.join(result_dir, scalar_record_file)
         scalar_recorder = ScalarRecorder(scalar_record_file)
+        self.scalar_record_file = scalar_record_file
         self.hooks.append(scalar_recorder)
         self.scalar_recorder = scalar_recorder
 
-        viz_runner = VisdomRunner(scalar_record_file)
-        self.hooks.append(viz_runner)
+        trainloss_viz_runner = VisdomRunner(plot_fn=plot_trainval_loss)
+        self.hooks.append(trainloss_viz_runner)
 
 
-    def register_hook(self, hook):
-        self.hooks += [hook]
+    def register_hook(self, hook, prepend=True):
+        if prepend:
+            self.hooks = [hook] + self.hooks
+        else:
+            self.hooks = self.hooks + [hook]
+
+    def register_validation_hook(self, hook, prepend=True):
+        hook.set_cache_dir(os.path.join(self.result_dir, 'val'))
+        self.register_hook(hook, prepend)
 
     def run(self, debug=False):
 

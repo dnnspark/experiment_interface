@@ -12,7 +12,7 @@ def _identity(*args):
 
 class ValidationHook(Hook):
 
-    def __init__(self, dataset, interval, name, predict_fn=None, metric=None, save_best=True):
+    def __init__(self, dataset, interval, name, predict_fn=None, metric=None, save_best=True, cache_dir=None):
         self.dataset = dataset
         self.interval = interval
         self.name = name
@@ -24,8 +24,17 @@ class ValidationHook(Hook):
         self.metric = metric
 
         self.save_best = save_best
+        self.cache_dir = cache_dir
+
+    def set_cache_dir(self, cache_dir):
+        if self.cache_dir is not None:
+            raise ValueError('\'cache_dir\' is not None, and overwriting is not allowed.')
+
+        self.cache_dir = cache_dir
 
     def before_loop(self, context):
+
+        logger = get_train_logger()
 
         if context.debug:
             self.interval = 5
@@ -40,9 +49,16 @@ class ValidationHook(Hook):
         self.best_metric = -np.inf if larger_is_better else np.inf
         self.last_saved = None
 
+        if self.cache_dir is not None:
+            self.cache_dir = cache_dir = os.path.join(self.cache_dir, self.name)
+            logger.info('Creating %s.' % cache_dir)
+            os.makedirs(cache_dir)
+
     def after_step(self, context):
 
         if context.step % self.interval == 0:
+
+            logger = get_train_logger()
 
             metric = self.metric
             if metric is None:
@@ -58,6 +74,10 @@ class ValidationHook(Hook):
                 is_validating = True,
                 )
 
+            if self.cache_dir is not None:
+                record_file = os.path.join(self.cache_dir, 'step%07d.csv' % context.step)
+                evaluator.set_record_file(record_file)
+
             score = evaluator.run()
             try:
                 score = score.detach().cpu().numpy()
@@ -65,7 +85,6 @@ class ValidationHook(Hook):
                 # score may be not torch.Tensor                
                 pass
 
-            logger = get_train_logger()
             logger.info('step=%d | VAL | %s=%.4f' % (context.step, self.name, score) )
             scalar_recorder = context.trainer.scalar_recorder
             if scalar_recorder is not None:

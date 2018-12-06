@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import os
 from torchvision import datasets, transforms
 from torch.utils.data.dataset import Dataset
 import tempfile
@@ -10,6 +11,8 @@ from experiment_interface.hooks import StopAtStep, SaveNetAtLast
 from experiment_interface.nets import Conv2D
 from experiment_interface.evaluator.metrics import ClassificationAccuracy
 from experiment_interface.hooks import ValidationHook
+from experiment_interface.hooks.viz_runner import VisdomRunner
+from experiment_interface.hooks.viz_runner import plot_val_lossacc
 
 class MyCNN(torch.nn.Module):
 
@@ -176,9 +179,15 @@ def test_cifar10():
         name = 'val_acc', 
         predict_fn = most_probable_class, 
         metric = class_acc_metric,
-        save_best=False)
+        save_best=False,
+        )
 
-    trainer.register_hook(accuracy_valhook)
+    trainer.register_validation_hook(accuracy_valhook, prepend=True)
 
-    # trainer.run(debug=True)
-    trainer.run(debug=False)
+    viz_val_lossacc_hook = VisdomRunner(plot_fn = plot_val_lossacc, is_master=False)
+
+    trainer.register_hook(viz_val_lossacc_hook, prepend=False)
+
+
+    trainer.run(debug=True)
+    # trainer.run(debug=False)

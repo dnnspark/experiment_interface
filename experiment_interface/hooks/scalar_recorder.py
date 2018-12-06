@@ -13,9 +13,9 @@ class ScalarRecorder(Hook):
     Log real-valued number during training.
     '''
 
-    def __init__(self, log_file, flush_interval=100):
-        assert log_file.endswith('.csv')
-        self.log_file = log_file
+    def __init__(self, record_file, flush_interval=100):
+        assert record_file.endswith('.csv')
+        self.record_file = record_file 
         self.flush_interval = flush_interval
 
     def append(self, row):
@@ -26,15 +26,15 @@ class ScalarRecorder(Hook):
         if context.debug:
             self.flush_interval = 10
 
-        log_file = self.log_file
+        record_file = self.record_file
 
-        if os.path.exists(log_file):
+        if os.path.exists(record_file):
             logger = get_train_logger()
-            logger.warning('Deleting %s.' % log_file)
-            os.remove(log_file)
+            logger.warning('Deleting %s.' % record_file)
+            os.remove(record_file)
 
         df = pd.DataFrame(columns = ['step', 'type', 'value'])
-        with open(log_file, 'w') as f:
+        with open(record_file, 'w') as f:
             df.to_csv(f, header=True)
 
         self.first_index = 0
@@ -64,7 +64,7 @@ class ScalarRecorder(Hook):
             logger.info('ScalarLogger flushing data... step=%d' % step)
             df = pd.concat(self.dfs, ignore_index=True)
             df.index = df.index + self.first_index 
-            with open(self.log_file, 'a') as f:
+            with open(self.record_file, 'a') as f:
                 df.to_csv(f, header=False)
             self.first_index += len(df)
             self.dfs = []

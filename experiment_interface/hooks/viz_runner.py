@@ -40,14 +40,18 @@ def format_tick(x, p):
     y = x / 1000.
     return '%.1fk' % y
 
-def plot_loss(scalar_record_file, step):
+def plot_trainval_loss(scalar_record_file, context):
     '''
+    Plot (smoothed) train loss and val loss.
+
     Assumptions:
         - 'batch_loss' and 'val_loss' type for train/val losses.
     '''
     df = pd.read_csv(scalar_record_file, index_col=0)
     if len(df) == 0:
         return None
+
+    step = df['step'].max()
 
     raw_batch_loss = df.loc[ df['type'] == 'batch_loss', ['step', 'value'] ]
     val_loss = df.loc[ df['type'] == 'val_loss', ['step', 'value'] ]
@@ -79,18 +83,68 @@ def plot_loss(scalar_record_file, step):
 
     plt.tight_layout()
 
+def plot_val_lossacc(scalar_record_file, context):
+    '''
+    Plot loss and test metric on validation set.
+
+    Assumptions:
+        - 'val_loss' and 'val_acc' type for val loss/accuracy.
+    '''
+    df = pd.read_csv(scalar_record_file, index_col=0)
+    if len(df) == 0:
+        return None
+
+    val_loss = df.loc[ df['type'] == 'val_loss', ['step', 'value'] ]
+    val_acc = df.loc[ df['type'] == 'val_acc', ['step', 'value'] ]
+
+    if len(val_loss) == 0 or len(val_acc) == 0:
+        return None
+
+    step = df['step'].max()
+
+    val_loss['type'] = 'val loss'
+    val_acc['type'] = 'val acc'
+
+    ax = val_loss.plot(
+            x = 'step', y='value', color=COLORS5[1], legend=False)
+
+    ymax = val_loss['value'].quantile(.95)
+    ax.set_ylim([0., ymax])
+    ax.set_ylabel('loss')
+
+    if step > 1000:
+        ax.get_xaxis().set_major_formatter(matplotlib.ticker.FuncFormatter(format_tick))
+
+    ax2 = ax.twinx()
+    val_acc.plot(
+            x = 'step', y='value', ax=ax2, color=COLORS5[2], legend=False)
+    ax2.set_ylim([0., 1.])
+    ax2.set_ylabel('accuracy')
+
+    lgnd = ax.figure.legend()
+    lgnd.texts[0].set_text('val loss')
+    lgnd.texts[1].set_text('val acc')
+
+    plt.tight_layout()
+
 class VisdomRunner(Hook):
 
-    def __init__(self, scalar_record_file, refresh_interval=10., is_master=True):
-        self.scalar_record_file = scalar_record_file
+    def __init__(self, plot_fn, refresh_interval=10., is_master=True):
+        self.plot_fn = plot_fn
         self.refresh_interval = refresh_interval
         self.is_master = is_master
         # self.viz = None
 
     def refresh(self, context):
 
-        plot_loss(self.scalar_record_file, step=context.step)
+        self.plot_fn(context.trainer.scalar_record_file, context)
         self.win = self.viz.matplot(plt, win=self.win, env=self.env)
+
+        # plot_loss(context.trainer.scalar_record_file, context)
+        # self.win = self.viz.matplot(plt, win=self.win, env=self.env)
+
+        # plot_val(context.trainer.scalar_record_file, context)
+        # self.win2 = self.viz.matplot(plt, win=self.win2, env=self.env)
 
     def before_loop(self, context):
 
@@ -123,6 +177,7 @@ class VisdomRunner(Hook):
         self.last_refreshed = time.time()
 
         self.win = None
+        self.win2 = None
         self.env = 'main'
 
     def after_step(self, context):
