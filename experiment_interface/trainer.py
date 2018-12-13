@@ -21,18 +21,21 @@ Trainer
 
 import torch
 import os
-from experiment_interface.hooks import ValidationHook, StopAtStep
+from experiment_interface.hooks import ValidationHook, StopAtStep, ScalarRecorder, TrainValLossViz
+from experiment_interface.hooks.scalar_recorder import Row
+# from experiment_interface.hooks.viz_runner import plot_trainval_loss
 from experiment_interface.logger import get_train_logger
 from experiment_interface.evaluator.metrics import Metric
+from experiment_interface.common import DebugMode
 
 class TrainContext():
 
-    def __init__(self, trainer, debug):
+    def __init__(self, trainer, debug_mode):
         '''
         A hook can set 'exit_loop' to True to terimnate the training loop.
         '''
         self.trainer = trainer
-        self.debug = debug
+        self.debug_mode = debug_mode 
 
         self.step = 0
         self.exit_loop = False
@@ -57,12 +60,13 @@ class Trainer():
         net,
         train_dataset,
         batch_size,
-        loss_fn,
+        loss_module,
         optimizer,
         result_dir,
-        log_file,
-        max_step = None,
+        log_file='train.log',
         log_interval = 1,
+        train_record_file = 'train_record.csv',
+        max_step = None,
         num_workers = None,
         hooks = [],
         val_dataset = None,
@@ -71,6 +75,9 @@ class Trainer():
 
         self.logger = logger = get_train_logger(os.path.join(result_dir, log_file))
 
+        # cuda settings
+        # - use_cuda
+        # - num_gpus
         self.use_cuda = use_cuda = torch.cuda.is_available()
         if use_cuda:
             num_gpus = torch.cuda.device_count()
@@ -79,16 +86,16 @@ class Trainer():
         else:
             self.num_gpus = 0
 
-        device = torch.device('cuda:0') if use_cuda else torch.device('cpu')
         # move the net to a gpu, and setup replicas for using multiple gpus;
         # no change needed for cpu mode.
+        device = torch.device('cuda:0') if use_cuda else torch.device('cpu')
         net = net.to(device)
         self.net = torch.nn.DataParallel(net)
 
         self.train_dataset = train_dataset
         self.batch_size = batch_size
 
-        self.loss_fn = loss_fn
+        self.loss_module = loss_module
         self.optimizer = optimizer # TODO: implement weight update schedule 
         self.result_dir = result_dir
         self.log_interval = log_interval
@@ -102,7 +109,14 @@ class Trainer():
 
         self.num_workers = num_workers
 
-        self.hooks = hooks
+        self.other_hooks = hooks
+        self.validation_hooks = []
+        self.viz_hooks = []
+        self.valhook_tab = dict()
+
+        # Set up default hooks (given valid arguments).
+        #   - ValidationHook
+        #   - StopAtStepHook
 
         if val_dataset is not None:
 
@@ -110,7 +124,7 @@ class Trainer():
                 raise ValueError('\'val_interval\' must be not None, if val_dataset is not None.')
 
             if isinstance(val_dataset, torch.utils.data.Dataset):
-                name = 'val'
+                name = 'val_loss'
                 dataset = val_dataset 
                 # predict_fn, metric = None, None
             elif len(val_dataset) == 2 and \
@@ -120,19 +134,57 @@ class Trainer():
                 raise ValueError('Invalid format for \'val_dataset\'.')
 
             val_hook = ValidationHook(dataset, val_interval, name, save_best=True)
-
-
-            self.hooks += [val_hook]
+            self.register_val_hook(val_hook)
 
         if max_step is not None:
-            self.hooks += [StopAtStep(max_step)]
+            self.other_hooks.append( StopAtStep(max_step) )
 
-    def register_hook(self, hook):
-        self.hooks += [hook]
+        if not train_record_file.endswith('.csv'):
+            raise ValueError('train_record_file must have .csv extension.')
 
-    def run(self, debug=False):
+        train_record_file = os.path.join(result_dir, train_record_file)
+        train_recorder = ScalarRecorder(train_record_file)
+        self.train_record_file = train_record_file 
+        self.train_recorder = train_recorder 
+
+        # trainloss_viz_runner = VisdomRunner(plot_fn=plot_trainval_loss)
+        trainval_loss_viz = TrainValLossViz(is_master=True)
+        self.register_viz_hook(trainval_loss_viz)
+
+
+    def register_hook(self, hook, prepend=False):
+        if prepend:
+            self.other_hooks = [hook] + self.other_hooks
+        else:
+            self.other_hooks = self.other_hooks + [hook]
+
+    def register_val_hook(self, hook,  prepend=False):
+        hook.set_cache_dir(os.path.join(self.result_dir, 'val'))
+        self.valhook_tab[hook.name] = hook
+        # self.register_hook(hook, prepend)
+
+        if prepend:
+            self.validation_hooks = [hook] + self.validation_hooks
+        else:
+            self.validation_hooks = self.validation_hooks + [hook]
+
+    def register_viz_hook(self, hook,  prepend=False):
+        if prepend:
+            self.viz_hooks = [hook] + self.viz_hooks
+        else:
+            self.viz_hooks = self.viz_hooks + [hook]
+
+    def run(self, debug_mode=DebugMode.NONE):
+
+        hooks = self.other_hooks + self.validation_hooks + [self.train_recorder] + self.viz_hooks
 
         logger = self.logger
+        if debug_mode == DebugMode.DEBUG:
+            self.log_interval = 1
+            self.num_workers = 4
+        elif debug_mode == DebugMode.DEV:
+            self.log_interval = 10
+            self.num_workers = 4
 
         train_data_loader = torch.utils.data.DataLoader(
             self.train_dataset, batch_size=self.batch_size, drop_last=True, shuffle=True, 
@@ -141,10 +193,12 @@ class Trainer():
         self.net.train()
         net = self.net
 
-        context = TrainContext(self, debug=debug)
+        context = TrainContext(self, debug_mode=debug_mode)
 
-        for hook in self.hooks:
+        for hook in hooks:
             hook.before_loop(context)
+
+        loss_fn = self.loss_module(reduction='mean')
 
         # training loop
         while not context.exit_loop:
@@ -156,7 +210,7 @@ class Trainer():
                 # - batch['labels'] is either a Tensor or a list/tuple of Tensor
                 # - batch['metadata'] is a dict of str.
 
-                for hook in self.hooks:
+                for hook in hooks:
                     hook.before_step(context)
 
                 inputs, labels, metadata = batch['inputs'], batch['labels'], batch['metadata']
@@ -177,7 +231,7 @@ class Trainer():
                 net_outputs = net(*inputs)
                 if isinstance(net_outputs, torch.Tensor):
                     net_outputs = [net_outputs]
-                losses = self.loss_fn(*net_outputs, *labels)
+                losses = loss_fn(*net_outputs, *labels)
 
                 # Assumption:
                 # - self.loss_fn() returns either a 0-dim (scalar) Tensor, or a list/tuple of the following form
@@ -195,15 +249,18 @@ class Trainer():
                 self.optimizer.step()
 
                 if context.step % self.log_interval == 0:
-                    logger.info('step=%d | total_loss=%.4f' % (context.step, total_loss.detach()))
+                    _total_loss = total_loss.detach().cpu().numpy()
+                    logger.info('step=%d | total_loss=%.4f' % (context.step, _total_loss))
+                    if self.train_recorder is not None:
+                        self.train_recorder.append( Row(context.step, 'batch_loss', _total_loss) )
 
-                for hook in self.hooks:
+                for hook in hooks:
                     hook.after_step(context)
 
                 if context.exit_loop:
                     break;
 
-        for hook in self.hooks:
+        for hook in hooks:
             hook.after_loop(context)
 
 

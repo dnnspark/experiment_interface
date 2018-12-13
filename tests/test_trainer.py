@@ -1,15 +1,21 @@
 import torch
 import numpy as np
+import os
 from torchvision import datasets, transforms
 from torch.utils.data.dataset import Dataset
 import tempfile
 import logging
 from experiment_interface import Trainer
+from experiment_interface.common import DebugMode
 from experiment_interface.logger import get_train_logger
-from experiment_interface.hooks import StopAtStep, SaveNetAtLast
+from experiment_interface.hooks import StopAtStep
 from experiment_interface.nets import Conv2D
 from experiment_interface.evaluator.metrics import ClassificationAccuracy
 from experiment_interface.hooks import ValidationHook
+from experiment_interface.hooks import ValLossAccViz
+from experiment_interface.hooks.viz_runner import VisdomRunner
+# from experiment_interface.hooks.viz_runner import VisdomRunner
+# from experiment_interface.hooks.viz_runner import plot_val_lossacc
 
 class MyCNN(torch.nn.Module):
 
@@ -65,7 +71,7 @@ class Cifar10TrainDataset(Dataset):
 
     def __init__(self, root, transform=None, target_transform=None, download=False):
         cifar10_train_dataset = datasets.CIFAR10(root, True, transform, target_transform, download)
-        self.dataset = torch.utils.data.Subset(cifar10_train_dataset, np.arange(0,49000))
+        self.dataset = torch.utils.data.Subset(cifar10_train_dataset, np.arange(0,49600))
 
     def __getitem__(self, index):
         image, label = self.dataset[index]
@@ -84,7 +90,7 @@ class Cifar10ValDataset(Dataset):
 
     def __init__(self, root, transform=None, target_transform=None, download=False):
         cifar10_train_dataset = datasets.CIFAR10(root, True, transform, target_transform, download)
-        self.dataset = torch.utils.data.Subset(cifar10_train_dataset, np.arange(49000,50000))
+        self.dataset = torch.utils.data.Subset(cifar10_train_dataset, np.arange(49600,50000))
 
     def __getitem__(self, index):
         image, label = self.dataset[index]
@@ -126,6 +132,30 @@ def most_probable_class(logits):
     '''
     return torch.argmax(logits, dim=1)
 
+import glob
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+
+class ConfMatViz(VisdomRunner):
+
+
+    def refresh(self, context, ax):
+        val_dir = os.path.join( context.trainer.result_dir, 'val', 'val_acc')
+        all_val_files = glob.glob(os.path.join( val_dir, '*.csv'))
+        if len(all_val_files) == 0:
+            return None
+
+        latest = max(all_val_files, key=os.path.getctime)
+        df = pd.read_csv(latest, index_col=0)
+
+        classacc_metric = context.trainer.valhook_tab['val_acc'].metric
+        conf_mat = classacc_metric.confusion_mat(df)
+
+        # ax = plt.gca()
+        sns.heatmap(data=conf_mat, cmap='Greys_r', ax=ax)
+
 
 
 def test_cifar10():
@@ -145,8 +175,9 @@ def test_cifar10():
         transforms.ToTensor(),
         ])
 
-    cache_dir = tempfile.mkdtemp()
+    # cache_dir = tempfile.mkdtemp()
     # cache_dir = '/var/folders/_1/9y4khvtd4sbbpf0wz_8fzlq00000gn/T/tmpktj6vddq'
+    cache_dir = '/cluster/storage/dpark/cifar10/'
     logger.info('cache_dir: %s' % cache_dir) 
     train_dataset = Cifar10TrainDataset(cache_dir, transform=train_trnsfrms, download=True)
     val_dataset = Cifar10ValDataset(cache_dir, transform=val_trnsfrms, download=False)
@@ -158,26 +189,35 @@ def test_cifar10():
         net = net,
         train_dataset = train_dataset,
         batch_size = 64,
-        loss_fn = torch.nn.CrossEntropyLoss(),
+        loss_module = torch.nn.CrossEntropyLoss,
         optimizer = torch.optim.Adam(net.parameters(), lr=0.003 ),
         result_dir = result_dir,
-        log_file='train.log',
+        log_interval = 10,
         num_workers = 30,
         max_step = 30000,
         val_dataset = val_dataset,
-        val_interval = 500,
+        val_interval = 200,
         )
 
     class_acc_metric = ClassificationAccuracy(category_names = CATEGORY_NAMES)
     accuracy_valhook = ValidationHook(
         dataset = val_dataset, 
-        interval = 500, 
+        interval = 200, 
         name = 'val_acc', 
         predict_fn = most_probable_class, 
         metric = class_acc_metric,
-        save_best=False)
+        save_best=False,
+        )
 
-    trainer.register_hook(accuracy_valhook)
+    trainer.register_val_hook(accuracy_valhook)
 
-    trainer.run(debug=True)
-    # trainer.run(debug=False)
+    val_lossacc_viz = ValLossAccViz(env='val')
+    trainer.register_viz_hook(val_lossacc_viz)
+
+    confmat_viz = ConfMatViz(env='val')
+    trainer.register_viz_hook(confmat_viz)
+
+
+
+    trainer.run(debug_mode=DebugMode.DEBUG)
+    # trainer.run(debug=DebugMode.DEV)

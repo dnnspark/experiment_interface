@@ -2,16 +2,18 @@ import torch
 import numpy as np
 import os
 from experiment_interface.hooks import Hook
+from experiment_interface.hooks.scalar_recorder import Row
 from experiment_interface.evaluator import Evaluator
 from experiment_interface.evaluator.metrics import LossMetric
 from experiment_interface.logger import get_train_logger
+from experiment_interface.common import DebugMode
 
 def _identity(*args):
     return args if len(args) > 1 else args[0]
 
 class ValidationHook(Hook):
 
-    def __init__(self, dataset, interval, name, predict_fn=None, metric=None, save_best=True):
+    def __init__(self, dataset, interval, name, predict_fn=None, metric=None, save_best=True, cache_dir=None):
         self.dataset = dataset
         self.interval = interval
         self.name = name
@@ -23,14 +25,25 @@ class ValidationHook(Hook):
         self.metric = metric
 
         self.save_best = save_best
+        self.cache_dir = cache_dir
+
+    def set_cache_dir(self, cache_dir):
+        if self.cache_dir is not None:
+            raise ValueError('\'cache_dir\' is not None, and overwriting is not allowed.')
+
+        self.cache_dir = cache_dir
 
     def before_loop(self, context):
 
-        if context.debug:
-            self.interval = 5
+        logger = get_train_logger()
+
+        if context.debug_mode == DebugMode.DEBUG:
+            self.interval = 10
+        elif context.debug_mode == DebugMode.DEV:
+            self.interval = 50
 
         if self.metric is None:
-            self.metric = LossMetric(context.trainer.loss_fn)
+            self.metric = LossMetric(context.trainer.loss_module)
         self.larger_is_better = larger_is_better = self.metric.larger_is_better
 
         self.batch_size = context.trainer.batch_size
@@ -39,57 +52,75 @@ class ValidationHook(Hook):
         self.best_metric = -np.inf if larger_is_better else np.inf
         self.last_saved = None
 
+        if self.cache_dir is not None:
+            self.cache_dir = cache_dir = os.path.join(self.cache_dir, self.name)
+            logger.info('Creating %s.' % cache_dir)
+            os.makedirs(cache_dir)
+
+
     def after_step(self, context):
 
         if context.step % self.interval == 0:
+            self._validate(context)
 
-            metric = self.metric
-            if metric is None:
-                metric = LossMetric(context.trainer.loss_fn)
+    def after_loop(self, context):
+        self._validate(context)
 
-            evaluator = Evaluator(
-                net = context.trainer.net,
-                test_dataset = self.dataset, 
-                batch_size = self.batch_size,
-                predict_fn = self.predict_fn,
-                metric = self.metric,
-                num_workers = self.num_workers,
-                is_validating = True,
-                )
+    def _validate(self, context):
 
-            score = evaluator.run()
+        logger = get_train_logger()
+
+        evaluator = Evaluator(
+            net = context.trainer.net,
+            test_dataset = self.dataset, 
+            batch_size = self.batch_size,
+            predict_fn = self.predict_fn,
+            metric = self.metric,
+            num_workers = self.num_workers,
+            is_validating = True,
+            )
+
+        if self.cache_dir is not None:
+            record_file = os.path.join(self.cache_dir, 'step%07d.csv' % context.step)
+            evaluator.set_record_file(record_file)
+
+        metric_eval = evaluator.run()
+        try:
+            metric_eval = metric_eval.detach().cpu().numpy()
+        except AttributeError:
+            # metric_eval may be not torch.Tensor                
+            pass
+
+        logger.info('step=%d | VAL | %s=%.4f' % (context.step, self.name, metric_eval) )
+        train_recorder = context.trainer.train_recorder
+        if train_recorder is not None:
+            train_recorder.append( Row(context.step, self.name, metric_eval) )
+
+        if self.save_best and ( self.larger_is_better == (metric_eval > self.best_metric) ):
+            # save net
+            step = context.step
             try:
-                score = score.detach().cpu()
+                net_name = context.trainer.net.module._name
             except AttributeError:
-                # score may be not torch.Tensor                
-                pass
+                net_name = 'net'
+            filename = '%s-%07d.pth' % (net_name, step)
 
-            logger = get_train_logger()
-            logger.info('step=%d | VAL | %s=%.4f' % (context.step, self.name, score) )
+            cache_dir = context.trainer.result_dir
 
-            if self.save_best and ( self.larger_is_better == (score > self.best_metric) ):
-                # save net
-                step = context.step
-                try:
-                    net_name = context.trainer.net.module._name
-                except AttributeError:
-                    net_name = 'net'
-                filename = '%s-%07d.pth' % (net_name, step)
+            path_to_save = os.path.join(cache_dir, filename)
+            logger.info('Saving net: %s' % path_to_save)
+            torch.save(context.trainer.net.state_dict(), path_to_save)
 
-                cache_dir = context.trainer.result_dir
+            if self.last_saved is not None:
+                logger.info('Deleting %s' % self.last_saved)
+                os.remove(self.last_saved)
+            self.last_saved = path_to_save
 
-                path_to_save = os.path.join(cache_dir, filename)
-                logger.info('Saving net: %s' % path_to_save)
-                torch.save(context.trainer.net.state_dict(), path_to_save)
+            self.best_metric = metric_eval
 
-                if self.last_saved is not None:
-                    logger.info('Deleting %s' % self.last_saved)
-                    os.remove(self.last_saved)
-                self.last_saved = path_to_save
+        context.add_item({self.name: metric_eval})
+        # TODO: this might be a problem when using "test" mode in train.
+        # e.g. batchnorm with batch_size=1
+        context.trainer.net.train() 
 
-                self.best_metric = score
 
-            context.add_item({self.name: score})
-            # TODO: this might be a problem when using "test" mode in train.
-            # e.g. batchnorm with batch_size=1
-            context.trainer.net.train() 

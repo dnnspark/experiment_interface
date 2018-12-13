@@ -21,6 +21,8 @@ REQUIRES_PYTHON = ">=3.5"
 REQUIRED = [
     'torch',
     'torchvision',
+    'seaborn',
+    'visdom',
 ]
 
 # What packages are optional?

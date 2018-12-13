@@ -1,7 +1,8 @@
 import os
 import numpy as np
 import torch
-from experiment_interface.logger import get_test_logger
+import pandas as pd
+from experiment_interface.logger import get_train_logger, get_test_logger
 
 class Evaluator():
 
@@ -13,18 +14,21 @@ class Evaluator():
         metric,
         num_workers,
         result_dir=None,
-        result_file=None,
+        record_file=None,
         log_file=None,
         pretrained_params_file=None,
         is_validating=False,
         ):
 
-        if log_file is not None:
-            if result_dir is None:
-                raise ValueError('\'result_dir\' must be not None, if \'log_file\' it not None. ')
-            logger = get_test_logger(os.path.join(result_dir, log_file))
+        if is_validating:
+            logger = get_train_logger()
         else:
-            logger = get_test_logger(None)
+            if log_file is not None:
+                if result_dir is None:
+                    raise ValueError('\'result_dir\' must be not None, if \'log_file\' it not None. ')
+                logger = get_test_logger(os.path.join(result_dir, log_file))
+            else:
+                logger = get_test_logger(None)
         self.logger = logger
 
         self.use_cuda = use_cuda = torch.cuda.is_available()
@@ -64,11 +68,20 @@ class Evaluator():
 
         self.num_workers = num_workers
 
-        if result_file is not None:
+        if record_file is not None:
             if result_dir is None:
-                raise ValueError('\'result_dir\' must be not None, if \'result_file\' it not None. ')
-            result_file = os.path.join(result_dir, result_file)
-        self.result_file = result_file
+                raise ValueError('\'result_dir\' must be not None, if \'record_file\' is not None. ')
+            record_file = os.path.join(result_dir, record_file)
+        self.record_file = record_file 
+
+    def set_record_file(self, record_file):
+        if self.record_file is not None:
+            raise ValueError('\'record_file\' is not None, and overwriting is not allowed.')
+
+        if not record_file.endswith('.csv'):
+            raise ValueError('\'record_file\' must have .csv extension.')
+
+        self.record_file = record_file
 
 
     def run(self):
@@ -84,7 +97,10 @@ class Evaluator():
 
         # class bbox img_file matched_groundtruth score 
 
-        self.metric.initialize()
+        # self.metric.initialize()
+
+        df = pd.DataFrame(columns=self.metric.columns)
+
         for batch in test_data_loader:
             # Assumptions: 
             # - batch is a dict key'ed by ('inputs', 'labels', 'metadata')
@@ -105,7 +121,7 @@ class Evaluator():
                 labels = [x.to(device) for x in labels]
 
             with torch.no_grad():
-                # TODO: this is probably not enougth to turn of requires_grad
+                # TODO: this is probably not enougth to turn off requires_grad
                 net_outputs = net(*inputs)
             if isinstance(net_outputs, torch.Tensor):
                 net_outputs = [net_outputs]
@@ -114,7 +130,13 @@ class Evaluator():
             if isinstance(predictions, torch.Tensor):
                 predictions = [predictions]
 
-            self.metric.process_batch_result(*predictions, *labels, metadata=metadata) 
+            _df = self.metric.batch_to_df(*predictions, *labels, metadata=metadata) 
+            df = pd.DataFrame.append(df, _df, ignore_index=True, sort=False)
 
-        score = self.metric.summarize(self.result_file)
-        return score
+        if self.record_file is not None:
+            logger.info("Writing %s." % self.record_file)
+            with open(self.record_file, 'w') as f:
+                df.to_csv(f)
+
+        eval_metric = self.metric.summarize(df)
+        return eval_metric
