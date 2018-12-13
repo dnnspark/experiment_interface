@@ -1,6 +1,7 @@
 import os
 import torch
 from experiment_interface.logger import get_train_logger
+from experiment_interface.common import DebugMode
 
 logger = get_train_logger()
 
@@ -24,8 +25,11 @@ class StopAtStep(Hook):
         self.stop_at = stop_at
 
     def before_loop(self, context):
-        if context.debug:
-            self.stop_at = 500
+        if context.debug_mode == DebugMode.DEBUG:
+            self.stop_at = 35 
+        elif context.debug_mode == DebugMode.DEV:
+            self.stop_at = 10000
+
 
     def after_step(self, context):
         if context.step == self.stop_at:

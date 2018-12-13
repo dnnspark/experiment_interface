@@ -26,15 +26,16 @@ from experiment_interface.hooks.scalar_recorder import Row
 # from experiment_interface.hooks.viz_runner import plot_trainval_loss
 from experiment_interface.logger import get_train_logger
 from experiment_interface.evaluator.metrics import Metric
+from experiment_interface.common import DebugMode
 
 class TrainContext():
 
-    def __init__(self, trainer, debug):
+    def __init__(self, trainer, debug_mode):
         '''
         A hook can set 'exit_loop' to True to terimnate the training loop.
         '''
         self.trainer = trainer
-        self.debug = debug
+        self.debug_mode = debug_mode 
 
         self.step = 0
         self.exit_loop = False
@@ -108,7 +109,9 @@ class Trainer():
 
         self.num_workers = num_workers
 
-        self.hooks = hooks
+        self.other_hooks = hooks
+        self.validation_hooks = []
+        self.viz_hooks = []
         self.valhook_tab = dict()
 
         # Set up default hooks (given valid arguments).
@@ -131,12 +134,10 @@ class Trainer():
                 raise ValueError('Invalid format for \'val_dataset\'.')
 
             val_hook = ValidationHook(dataset, val_interval, name, save_best=True)
-            # val_hook.set_cache_dir(os.path.join(self.result_dir, 'val'))
-            # self.hooks.append( val_hook )
-            self.register_validation_hook(val_hook)
+            self.register_val_hook(val_hook)
 
         if max_step is not None:
-            self.hooks.append( StopAtStep(max_step) )
+            self.other_hooks.append( StopAtStep(max_step) )
 
         if not train_record_file.endswith('.csv'):
             raise ValueError('train_record_file must have .csv extension.')
@@ -144,30 +145,45 @@ class Trainer():
         train_record_file = os.path.join(result_dir, train_record_file)
         train_recorder = ScalarRecorder(train_record_file)
         self.train_record_file = train_record_file 
-        self.hooks.append(train_recorder)
         self.train_recorder = train_recorder 
 
         # trainloss_viz_runner = VisdomRunner(plot_fn=plot_trainval_loss)
         trainval_loss_viz = TrainValLossViz(is_master=True)
-        self.hooks.append(trainval_loss_viz)
+        self.register_viz_hook(trainval_loss_viz)
 
 
-    def register_hook(self, hook, prepend=True):
+    def register_hook(self, hook, prepend=False):
         if prepend:
-            self.hooks = [hook] + self.hooks
+            self.other_hooks = [hook] + self.other_hooks
         else:
-            self.hooks = self.hooks + [hook]
+            self.other_hooks = self.other_hooks + [hook]
 
-    def register_validation_hook(self, hook,  prepend=True):
+    def register_val_hook(self, hook,  prepend=False):
         hook.set_cache_dir(os.path.join(self.result_dir, 'val'))
         self.valhook_tab[hook.name] = hook
-        self.register_hook(hook, prepend)
+        # self.register_hook(hook, prepend)
 
-    def run(self, debug=False):
+        if prepend:
+            self.validation_hooks = [hook] + self.validation_hooks
+        else:
+            self.validation_hooks = self.validation_hooks + [hook]
+
+    def register_viz_hook(self, hook,  prepend=False):
+        if prepend:
+            self.viz_hooks = [hook] + self.viz_hooks
+        else:
+            self.viz_hooks = self.viz_hooks + [hook]
+
+    def run(self, debug_mode=DebugMode.NONE):
+
+        hooks = self.other_hooks + self.validation_hooks + [self.train_recorder] + self.viz_hooks
 
         logger = self.logger
-        if debug:
+        if debug_mode == DebugMode.DEBUG:
             self.log_interval = 1
+            self.num_workers = 4
+        elif debug_mode == DebugMode.DEV:
+            self.log_interval = 10
             self.num_workers = 4
 
         train_data_loader = torch.utils.data.DataLoader(
@@ -177,9 +193,9 @@ class Trainer():
         self.net.train()
         net = self.net
 
-        context = TrainContext(self, debug=debug)
+        context = TrainContext(self, debug_mode=debug_mode)
 
-        for hook in self.hooks:
+        for hook in hooks:
             hook.before_loop(context)
 
         loss_fn = self.loss_module(reduction='mean')
@@ -194,7 +210,7 @@ class Trainer():
                 # - batch['labels'] is either a Tensor or a list/tuple of Tensor
                 # - batch['metadata'] is a dict of str.
 
-                for hook in self.hooks:
+                for hook in hooks:
                     hook.before_step(context)
 
                 inputs, labels, metadata = batch['inputs'], batch['labels'], batch['metadata']
@@ -238,13 +254,13 @@ class Trainer():
                     if self.train_recorder is not None:
                         self.train_recorder.append( Row(context.step, 'batch_loss', _total_loss) )
 
-                for hook in self.hooks:
+                for hook in hooks:
                     hook.after_step(context)
 
                 if context.exit_loop:
                     break;
 
-        for hook in self.hooks:
+        for hook in hooks:
             hook.after_loop(context)
 
 

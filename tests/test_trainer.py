@@ -6,8 +6,9 @@ from torch.utils.data.dataset import Dataset
 import tempfile
 import logging
 from experiment_interface import Trainer
+from experiment_interface.common import DebugMode
 from experiment_interface.logger import get_train_logger
-from experiment_interface.hooks import StopAtStep, SaveNetAtLast
+from experiment_interface.hooks import StopAtStep
 from experiment_interface.nets import Conv2D
 from experiment_interface.evaluator.metrics import ClassificationAccuracy
 from experiment_interface.hooks import ValidationHook
@@ -208,15 +209,15 @@ def test_cifar10():
         save_best=False,
         )
 
-    trainer.register_validation_hook(accuracy_valhook, prepend=True)
+    trainer.register_val_hook(accuracy_valhook)
 
     val_lossacc_viz = ValLossAccViz(env='val')
-    trainer.register_hook(val_lossacc_viz, prepend=False)
+    trainer.register_viz_hook(val_lossacc_viz)
 
     confmat_viz = ConfMatViz(env='val')
-    trainer.register_hook(confmat_viz, prepend=False)
+    trainer.register_viz_hook(confmat_viz)
 
 
 
-    trainer.run(debug=True)
-    # trainer.run(debug=False)
+    trainer.run(debug_mode=DebugMode.DEBUG)
+    # trainer.run(debug=DebugMode.DEV)

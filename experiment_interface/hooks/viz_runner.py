@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from experiment_interface.hooks import Hook
 from experiment_interface.logger import get_train_logger
 from experiment_interface.plot_utils import plot_trainval_loss, plot_val_lossacc
+from experiment_interface.common import DebugMode
 
 
 # import matplotlib
@@ -32,6 +33,9 @@ class VisdomRunner(Hook):
     def init(self, **kwargs):
         pass
 
+    def set_refresh_interval(self, interval):
+        self.refresh_interval = interval
+
     def _refresh(self, context):
         plt.figure(self.fignumber)
         plt.clf()
@@ -44,7 +48,7 @@ class VisdomRunner(Hook):
 
     def before_loop(self, context):
 
-        if context.debug:
+        if context.debug_mode in (DebugMode.DEBUG, DebugMode.DEV):
             self.refresh_interval = 2.
 
         logger = get_train_logger()
@@ -89,7 +93,10 @@ class VisdomRunner(Hook):
             self.last_refreshed = time.time()
 
     def after_loop(self, context):
+        logger = get_train_logger()
+        logger.info('refreshing visdom runner.')
         self._refresh(context)
+        self.last_refreshed = time.time()
 
 
 class TrainValLossViz(VisdomRunner):
