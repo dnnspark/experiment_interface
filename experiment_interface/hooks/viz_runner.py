@@ -68,15 +68,26 @@ class VisdomRunner(Hook):
             cmd = 'tmux send-keys -t visdom_server ". activate && python -m visdom.server" Enter'
             logger.info(cmd)
             os.system(cmd)
-            # time.sleep(1.)
-            logger.info('Wait 10 seconds for Visdom server...')
-            time.sleep(10.)
+            time.sleep(1.)
 
-        self.viz = visdom.Visdom(port=VISDOM_PORT, server="http://localhost")
-        if not self.viz.check_connection():
-            raise RuntimeError('Visdom failed to connect.')
-        else:
+        start_trying_connecting = time.time()
+        viz = visdom.Visdom(port=VISDOM_PORT, server="http://localhost")
+        connected = viz.check_connection()
+        while not connected:
+            time.sleep(2.)
+            viz.close()
+            logger.info('Trying connecting to Visdom server.')
+            viz = visdom.Visdom(port=VISDOM_PORT, server="http://localhost")
+            connected = viz.check_connection()
+            if time.time() - start_trying_connecting > 20.:
+                break;
+
+        if connected:
             logger.info('Visdom client connected.')
+        else:
+            raise RuntimeError('Connecting to Visdom server failed.')
+
+        self.viz = viz
         self.last_refreshed = time.time()
 
         # plt.figure()

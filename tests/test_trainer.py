@@ -137,6 +137,18 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+def reduce_ticklabelsize(ax, axes=['x'], factor=.5):
+    if 'x' in axes:
+        ticklabels = ax.get_xticklabels()
+        for label in ticklabels:
+            label.set_size(label.get_size() * factor)
+        ax.set_xticklabels(ticklabels)
+    if 'y' in axes:
+        ticklabels = ax.get_yticklabels()
+        for label in ticklabels:
+            label.set_size(label.get_size() * factor)
+        ax.set_yticklabels(ticklabels)
+
 
 class ConfMatViz(VisdomRunner):
 
@@ -155,8 +167,11 @@ class ConfMatViz(VisdomRunner):
 
         # ax = plt.gca()
         sns.heatmap(data=conf_mat, cmap='Greys_r', ax=ax)
-
-
+        reduce_ticklabelsize(ax, ['x','y'], factor=.7)
+        ax.set_xlabel('groundtruth')
+        ax.set_ylabel('prediction')
+        ax.set_aspect('equal', adjustable='box')
+        plt.tight_layout()
 
 def test_cifar10():
 
