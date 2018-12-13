@@ -69,7 +69,7 @@ class VisdomRunner(Hook):
             logger.info(cmd)
             os.system(cmd)
             # time.sleep(1.)
-            logger.info('Wait 3 seconds for Visdom server...')
+            logger.info('Wait 10 seconds for Visdom server...')
             time.sleep(3.)
 
         self.viz = visdom.Visdom(port=VISDOM_PORT, server="http://localhost")
