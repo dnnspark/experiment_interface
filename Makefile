@@ -33,7 +33,7 @@ test:
 	pytest tests -s
 
 ci:
-	pytest tests
+	pytest tests -s
 
 flake8:
 	flake8 --ignore=E501,F401,E128,E402,E731,F821 experiment_interface
