@@ -37,10 +37,10 @@ class ValidationHook(Hook):
         logger = get_train_logger()
 
         if context.debug:
-            self.interval = 5
+            self.interval = 50
 
         if self.metric is None:
-            self.metric = LossMetric(context.trainer.loss_fn)
+            self.metric = LossMetric(context.trainer.loss_module)
         self.larger_is_better = larger_is_better = self.metric.larger_is_better
 
         self.batch_size = context.trainer.batch_size
@@ -60,10 +60,6 @@ class ValidationHook(Hook):
 
             logger = get_train_logger()
 
-            metric = self.metric
-            if metric is None:
-                metric = LossMetric(context.trainer.loss_fn)
-
             evaluator = Evaluator(
                 net = context.trainer.net,
                 test_dataset = self.dataset, 
@@ -78,19 +74,19 @@ class ValidationHook(Hook):
                 record_file = os.path.join(self.cache_dir, 'step%07d.csv' % context.step)
                 evaluator.set_record_file(record_file)
 
-            score = evaluator.run()
+            metric_eval = evaluator.run()
             try:
-                score = score.detach().cpu().numpy()
+                metric_eval = metric_eval.detach().cpu().numpy()
             except AttributeError:
-                # score may be not torch.Tensor                
+                # metric_eval may be not torch.Tensor                
                 pass
 
-            logger.info('step=%d | VAL | %s=%.4f' % (context.step, self.name, score) )
-            scalar_recorder = context.trainer.scalar_recorder
-            if scalar_recorder is not None:
-                scalar_recorder.append( Row(context.step, self.name, score) )
+            logger.info('step=%d | VAL | %s=%.4f' % (context.step, self.name, metric_eval) )
+            train_recorder = context.trainer.train_recorder
+            if train_recorder is not None:
+                train_recorder.append( Row(context.step, self.name, metric_eval) )
 
-            if self.save_best and ( self.larger_is_better == (score > self.best_metric) ):
+            if self.save_best and ( self.larger_is_better == (metric_eval > self.best_metric) ):
                 # save net
                 step = context.step
                 try:
@@ -110,9 +106,9 @@ class ValidationHook(Hook):
                     os.remove(self.last_saved)
                 self.last_saved = path_to_save
 
-                self.best_metric = score
+                self.best_metric = metric_eval
 
-            context.add_item({self.name: score})
+            context.add_item({self.name: metric_eval})
             # TODO: this might be a problem when using "test" mode in train.
             # e.g. batchnorm with batch_size=1
             context.trainer.net.train() 

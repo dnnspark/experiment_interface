@@ -25,7 +25,7 @@ class StopAtStep(Hook):
 
     def before_loop(self, context):
         if context.debug:
-            self.stop_at = 30
+            self.stop_at = 500
 
     def after_step(self, context):
         if context.step == self.stop_at:

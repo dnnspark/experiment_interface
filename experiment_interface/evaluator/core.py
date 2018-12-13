@@ -130,14 +130,13 @@ class Evaluator():
             if isinstance(predictions, torch.Tensor):
                 predictions = [predictions]
 
-            _df = self.metric.process_batch_result(*predictions, *labels, metadata=metadata) 
-            df = pd.DataFrame.append(df, _df, ignore_index=True)
+            _df = self.metric.batch_to_df(*predictions, *labels, metadata=metadata) 
+            df = pd.DataFrame.append(df, _df, ignore_index=True, sort=False)
 
         if self.record_file is not None:
             logger.info("Writing %s." % self.record_file)
             with open(self.record_file, 'w') as f:
                 df.to_csv(f)
 
-        import pdb; pdb.set_trace()
         eval_metric = self.metric.summarize(df)
         return eval_metric

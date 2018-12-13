@@ -24,7 +24,7 @@ class ScalarRecorder(Hook):
     def before_loop(self, context):
 
         if context.debug:
-            self.flush_interval = 10
+            self.flush_interval = 20
 
         record_file = self.record_file
 
@@ -62,7 +62,7 @@ class ScalarRecorder(Hook):
         if step % self.flush_interval == 0:
             logger = get_train_logger()
             logger.info('ScalarLogger flushing data... step=%d' % step)
-            df = pd.concat(self.dfs, ignore_index=True)
+            df = pd.concat(self.dfs, ignore_index=True, sort=False)
             df.index = df.index + self.first_index 
             with open(self.record_file, 'a') as f:
                 df.to_csv(f, header=False)

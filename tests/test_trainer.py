@@ -11,8 +11,10 @@ from experiment_interface.hooks import StopAtStep, SaveNetAtLast
 from experiment_interface.nets import Conv2D
 from experiment_interface.evaluator.metrics import ClassificationAccuracy
 from experiment_interface.hooks import ValidationHook
+from experiment_interface.hooks import ValLossAccViz
 from experiment_interface.hooks.viz_runner import VisdomRunner
-from experiment_interface.hooks.viz_runner import plot_val_lossacc
+# from experiment_interface.hooks.viz_runner import VisdomRunner
+# from experiment_interface.hooks.viz_runner import plot_val_lossacc
 
 class MyCNN(torch.nn.Module):
 
@@ -129,6 +131,30 @@ def most_probable_class(logits):
     '''
     return torch.argmax(logits, dim=1)
 
+import glob
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+
+class ConfMatViz(VisdomRunner):
+
+
+    def refresh(self, context, ax):
+        val_dir = os.path.join( context.trainer.result_dir, 'val', 'val_acc')
+        all_val_files = glob.glob(os.path.join( val_dir, '*.csv'))
+        if len(all_val_files) == 0:
+            return None
+
+        latest = max(all_val_files, key=os.path.getctime)
+        df = pd.read_csv(latest, index_col=0)
+
+        classacc_metric = context.trainer.valhook_tab['val_acc'].metric
+        conf_mat = classacc_metric.confusion_mat(df)
+
+        # ax = plt.gca()
+        sns.heatmap(data=conf_mat, cmap='Greys_r', ax=ax)
+
 
 
 def test_cifar10():
@@ -148,9 +174,9 @@ def test_cifar10():
         transforms.ToTensor(),
         ])
 
-    cache_dir = tempfile.mkdtemp()
+    # cache_dir = tempfile.mkdtemp()
     # cache_dir = '/var/folders/_1/9y4khvtd4sbbpf0wz_8fzlq00000gn/T/tmpktj6vddq'
-    # cache_dir = '/cluster/storage/dpark/cifar10/'
+    cache_dir = '/cluster/storage/dpark/cifar10/'
     logger.info('cache_dir: %s' % cache_dir) 
     train_dataset = Cifar10TrainDataset(cache_dir, transform=train_trnsfrms, download=True)
     val_dataset = Cifar10ValDataset(cache_dir, transform=val_trnsfrms, download=False)
@@ -162,7 +188,7 @@ def test_cifar10():
         net = net,
         train_dataset = train_dataset,
         batch_size = 64,
-        loss_fn = torch.nn.CrossEntropyLoss(),
+        loss_module = torch.nn.CrossEntropyLoss,
         optimizer = torch.optim.Adam(net.parameters(), lr=0.003 ),
         result_dir = result_dir,
         log_interval = 10,
@@ -184,9 +210,12 @@ def test_cifar10():
 
     trainer.register_validation_hook(accuracy_valhook, prepend=True)
 
-    viz_val_lossacc_hook = VisdomRunner(plot_fn = plot_val_lossacc, is_master=False)
+    val_lossacc_viz = ValLossAccViz(env='val')
+    trainer.register_hook(val_lossacc_viz, prepend=False)
 
-    trainer.register_hook(viz_val_lossacc_hook, prepend=False)
+    confmat_viz = ConfMatViz(env='val')
+    trainer.register_hook(confmat_viz, prepend=False)
+
 
 
     trainer.run(debug=True)

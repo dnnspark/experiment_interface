@@ -2,6 +2,8 @@ import torch
 import pandas as pd
 import numpy as np
 from itertools import product
+from experiment_interface.utils import np_encode, np_decode
+from experiment_interface.utils import extract_np_array
 
 class Metric():
     '''
@@ -18,22 +20,17 @@ class Metric():
     def columns(self):
         raise NotImplementedError()
 
-    # def initialize(self):
-    #     raise NotImplementedError()
-
-    def process_batch_result(self, *args, metadata):
-        '''
-        This takes a batch of predictions and its groundtruth,
-        and update its internal state.
-
-        Return
-        ======
-            record: pandas.Dataframe
-                must have the self.columns as columns
-        '''
+    def batch_to_df(self, *args, metadata):
         raise NotImplementedError()
 
-    def summarize(self, df):
+    def summarize(self, df, mode='metric'):
+        '''
+        df: pd.DataFrame
+            columns must be self column
+        mode: str
+            must be 'metric' or metric-speicific string
+            when set to 'metric' must return a float
+        '''
         raise NotImplementedError()
 
 class ClassificationAccuracy(Metric):
@@ -52,12 +49,8 @@ class ClassificationAccuracy(Metric):
     def columns(self):
         return ['image_id', 'predicted_class_idx', 'groundtruth_class_idx', 'predicted_class', 'groundtruth_class']
 
-    # def initialize(self):
 
-    #     self.num_labels = np.zeros(self.num_categories)
-    #     self.num_matched = np.zeros(self.num_categories)
-
-    def process_batch_result(self, predictions, labels, metadata):
+    def batch_to_df(self, predictions, labels, metadata):
         '''
         '''
         assert len(predictions) == len(labels) == len(metadata['img_ids'])
@@ -77,11 +70,6 @@ class ClassificationAccuracy(Metric):
             })
 
         return df
-        # label_count = np.bincount( labels, minlength=self.num_categories)
-        # matched = predictions == labels
-        # match_count = np.bincount( labels, minlength=self.num_categories, weights=np.float32(matched))
-        # self.num_labels += label_count
-        # self.num_matched += match_count
 
     def confusion_mat(self, df):
 
@@ -101,56 +89,86 @@ class ClassificationAccuracy(Metric):
 
         return conf_mat
 
-    def summarize(self, df):
+    def summarize(self, df, mode='metric'):
         '''
-        From rich to succinct:
-            - Confusion matrix
-            - per-class accuracy
-            - mean accuracy
+        Input
+        =====
+            mode: 'conf_mat' | 'per_class_acc' | 'metric' 
+                - confusion matrx ('conf_mat')
+                    CxC pd.DataFrame, where both columns and index are self.columns.
+                    row: predicted class; columns: groundtruth class
+                - per-class accuracy ('per_class_acc')
+                    length-C pd.Series. accuracy, or recall, per class 
+                - mean accuracy ('metric')
+                    average across classes of per-class accuracy
         '''
 
         conf_mat = self.confusion_mat(df)
-        import pdb; pdb.set_trace()
+        if mode == 'per_class_acc':
+            return conf_mat
+        C = conf_mat.values.astype(np.float32)
+        per_class_acc = np.diag(C) / np.sum(C, axis=0)
+        if mode == 'per_class_acc':
+            return pd.Series(per_class_acc, index=self.columns)
+        assert mode == 'metric'
+        mean_accuracy = np.mean(per_class_acc)
 
-        # product(range(self.num_categories), range(self.num_categories))
+        return mean_accuracy
 
-        # count = df.groupby(['predicted_class_idx', 'groundtruth_class_idx']).size() # pd.Series
-        # count = count.reset_index(name='count') # pd.DataFrame
-
-        # accuracy = (df['predicted_class_idx'] == df['groundtruth_class_idx']).astype(np.float32).mean()
-        # accuracy = self.num_matched / self.num_labels
-        # return np.mean(accuracy)
-
-        return accuracy
 
 class LossMetric(Metric):
     '''
     Assumption:
-        loss_fn computes mean loss over the batch.
+        loss_fn(reduction='mean') computes mean loss over the batch.
+        loss_fn(reduction='none') does not perform the reduction.
+
     '''
 
-    def __init__(self, loss_fn):
-        self.loss_fn = loss_fn
+    def __init__(self, loss_module):
+        self.loss_fn = loss_module(reduction='none')
+        self.type = 'loss'
 
     @property
     def larger_is_better(self):
         return False
 
-    def initialize(self):
+    @property
+    def columns(self):
+        return ['image_id', 'loss']
 
-        self.total_loss = 0
-        self.num_examples = 0
-
-    def process_batch_result(self, *loss_fn_args, metadata):
+    def batch_to_df(self, *loss_fn_args, metadata):
 
         num_examples = loss_fn_args[0].shape[0]
-        loss = self.loss_fn(*loss_fn_args)
+        elementwise_loss = self.loss_fn(*loss_fn_args)
 
-        self.total_loss += num_examples * loss
-        self.num_examples += num_examples
+        dikt = {
+            'image_id': metadata['img_ids'],
+            'loss': elementwise_loss.data.cpu().numpy(),
+        }
+
+        for arg_idx, arg in enumerate(loss_fn_args):
+            _arg = arg.data.cpu().numpy()
+            # dtype = _arg.dtype
+            # shape = _arg[0].shape
+
+            encoded_args, encoded_shapes, encoded_dtypes = list(zip(*[np_encode(x) for x in _arg]))
+
+            dikt.update({
+                'arg%d' % arg_idx: encoded_args,
+                'arg%d_shape' % arg_idx: encoded_shapes,
+                'arg%d_dtype' % arg_idx: encoded_dtypes,
+                })
+
+
+        df = pd.DataFrame(dikt)
+
+        extracted_args0 = extract_np_array(df, 'arg0')
+        extracted_args1 = extract_np_array(df, 'arg1')
+
+        return df
 
     def summarize(self, df):
-        return self.total_loss / self.num_examples
+        return df['loss'].mean()
 
 class PrecisionRecall(Metric):
 
