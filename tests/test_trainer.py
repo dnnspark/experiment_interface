@@ -219,5 +219,5 @@ def test_cifar10():
 
 
 
-    # trainer.run(debug_mode=DebugMode.DEBUG)
-    trainer.run(debug_mode=DebugMode.DEV)
+    trainer.run(debug_mode=DebugMode.DEBUG)
+    # trainer.run(debug_mode=DebugMode.DEV)
