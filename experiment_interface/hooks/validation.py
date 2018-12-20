@@ -43,7 +43,7 @@ class ValidationHook(Hook):
             self.interval = 50
 
         if self.metric is None:
-            self.metric = LossMetric(context.trainer.loss_module)
+            self.metric = LossMetric(context.trainer.loss_module_class)
         self.larger_is_better = larger_is_better = self.metric.larger_is_better
 
         self.batch_size = context.trainer.batch_size

@@ -60,7 +60,7 @@ class Trainer():
         net,
         train_dataset,
         batch_size,
-        loss_module,
+        loss_module_class,
         optimizer,
         result_dir,
         log_file='train.log',
@@ -95,7 +95,7 @@ class Trainer():
         self.train_dataset = train_dataset
         self.batch_size = batch_size
 
-        self.loss_module = loss_module
+        self.loss_module_class = loss_module_class
         self.optimizer = optimizer # TODO: implement weight update schedule 
         self.result_dir = result_dir
         self.log_interval = log_interval
@@ -198,7 +198,9 @@ class Trainer():
         for hook in hooks:
             hook.before_loop(context)
 
-        loss_fn = self.loss_module(reduction='mean')
+        loss_module = self.loss_module_class(reduction='mean')
+        device = torch.device('cuda:0') if self.use_cuda else torch.device('cpu')
+        loss_module = loss_module.to(device)
 
         # training loop
         while not context.exit_loop:
@@ -231,10 +233,10 @@ class Trainer():
                 net_outputs = net(*inputs)
                 if isinstance(net_outputs, torch.Tensor):
                     net_outputs = [net_outputs]
-                losses = loss_fn(*net_outputs, *labels)
+                losses = loss_module(*net_outputs, *labels)
 
                 # Assumption:
-                # - self.loss_fn() returns either a 0-dim (scalar) Tensor, or a list/tuple of the following form
+                # - self.loss_module() returns either a 0-dim (scalar) Tensor, or a list/tuple of the following form
                 # - [total_loss, (loss_name_1, loss1), (loss_name_2, loss2), ...]
                 if isinstance(losses, list) or isinstance(losses, tuple):
                     total_loss, other_losses = losses[0], losses[1:]

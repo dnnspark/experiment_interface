@@ -190,9 +190,9 @@ def test_cifar10():
         transforms.ToTensor(),
         ])
 
-    cache_dir = tempfile.mkdtemp()
+    # cache_dir = tempfile.mkdtemp()
     # cache_dir = '/var/folders/_1/9y4khvtd4sbbpf0wz_8fzlq00000gn/T/tmpktj6vddq'
-    # cache_dir = '/cluster/storage/dpark/cifar10/'
+    cache_dir = '/cluster/storage/dpark/cifar10/'
     logger.info('cache_dir: %s' % cache_dir) 
     train_dataset = Cifar10TrainDataset(cache_dir, transform=train_trnsfrms, download=True)
     val_dataset = Cifar10ValDataset(cache_dir, transform=val_trnsfrms, download=False)
@@ -204,7 +204,7 @@ def test_cifar10():
         net = net,
         train_dataset = train_dataset,
         batch_size = 64,
-        loss_module = torch.nn.CrossEntropyLoss,
+        loss_module_class = torch.nn.CrossEntropyLoss,
         optimizer = torch.optim.Adam(net.parameters(), lr=0.003 ),
         result_dir = result_dir,
         log_interval = 10,
