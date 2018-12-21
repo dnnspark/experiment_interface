@@ -119,13 +119,13 @@ class ClassificationAccuracy(Metric):
 class LossMetric(Metric):
     '''
     Assumption:
-        loss_fn(reduction='mean') computes mean loss over the batch.
-        loss_fn(reduction='none') does not perform the reduction.
+        loss_module_class(reduction='mean') computes mean loss over the batch.
+        loss_module_class(reduction='none') does not perform the reduction.
 
     '''
 
-    def __init__(self, loss_module):
-        self.loss_fn = loss_module(reduction='none')
+    def __init__(self, loss_module_class):
+        self.loss_module = loss_module_class(reduction='none')
         self.type = 'loss'
 
     @property
@@ -139,7 +139,7 @@ class LossMetric(Metric):
     def batch_to_df(self, *loss_fn_args, metadata):
 
         num_examples = loss_fn_args[0].shape[0]
-        elementwise_loss = self.loss_fn(*loss_fn_args)
+        elementwise_loss = self.loss_module(*loss_fn_args)
 
         dikt = {
             'image_id': metadata['img_ids'],

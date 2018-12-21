@@ -8,19 +8,27 @@ from experiment_interface.evaluator.metrics import LossMetric
 from experiment_interface.logger import get_train_logger
 from experiment_interface.common import DebugMode
 
-def _identity(*args):
-    return args if len(args) > 1 else args[0]
+# def _identity(*args):
+#     return args if len(args) > 1 else args[0]
+class _IdentityModule(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, *args):
+        return args if len(args) > 1 else args[0]
 
 class ValidationHook(Hook):
 
-    def __init__(self, dataset, interval, name, predict_fn=None, metric=None, save_best=True, cache_dir=None):
+    def __init__(self, dataset, interval, name, predict_module=None, metric=None, save_best=True, cache_dir=None):
         self.dataset = dataset
         self.interval = interval
         self.name = name
 
-        if predict_fn is None:
-            predict_fn = _identity
-        self.predict_fn = predict_fn
+        if predict_module is None:
+            # predict_module = _identity_module
+            predict_module = _IdentityModule()
+        self.predict_module = predict_module
 
         self.metric = metric
 
@@ -43,7 +51,7 @@ class ValidationHook(Hook):
             self.interval = 50
 
         if self.metric is None:
-            self.metric = LossMetric(context.trainer.loss_module)
+            self.metric = LossMetric(context.trainer.loss_module_class)
         self.larger_is_better = larger_is_better = self.metric.larger_is_better
 
         self.batch_size = context.trainer.batch_size
@@ -74,7 +82,7 @@ class ValidationHook(Hook):
             net = context.trainer.net,
             test_dataset = self.dataset, 
             batch_size = self.batch_size,
-            predict_fn = self.predict_fn,
+            predict_module = self.predict_module,
             metric = self.metric,
             num_workers = self.num_workers,
             is_validating = True,
