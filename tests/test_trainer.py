@@ -124,13 +124,20 @@ class Cifar10TestDataset(Dataset):
         return len(self.dataset)
 
 
-def most_probable_class(logits):
-    '''
-    Input
-    =====
-        logits: (B, C) Tensor
-    '''
-    return torch.argmax(logits, dim=1)
+# def most_probable_class(logits):
+#     '''
+#     Input
+#     =====
+#         logits: (B, C) Tensor
+#     '''
+#     return torch.argmax(logits, dim=1)
+class MostProbableClass(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, logits):
+        return torch.argmax(logits, dim=1)
 
 import glob
 import pandas as pd
@@ -219,7 +226,8 @@ def test_cifar10():
         dataset = val_dataset, 
         interval = 200, 
         name = 'val_acc', 
-        predict_fn = most_probable_class, 
+        # predict_fn = most_probable_class, 
+        predict_module = MostProbableClass(), 
         metric = class_acc_metric,
         save_best=False,
         )

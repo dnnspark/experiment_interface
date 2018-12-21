@@ -10,7 +10,7 @@ class Evaluator():
         net,
         test_dataset,
         batch_size,
-        predict_fn,
+        predict_module,
         metric,
         num_workers,
         result_dir=None,
@@ -56,7 +56,7 @@ class Evaluator():
         self.test_dataset = test_dataset
         self.batch_size = batch_size
 
-        self.predict_fn = predict_fn
+        self.predict_module = predict_module
         self.metric = metric
 
         if use_cuda and num_workers is None:
@@ -126,7 +126,7 @@ class Evaluator():
             if isinstance(net_outputs, torch.Tensor):
                 net_outputs = [net_outputs]
 
-            predictions = self.predict_fn(*net_outputs)
+            predictions = self.predict_module(*net_outputs)
             if isinstance(predictions, torch.Tensor):
                 predictions = [predictions]
 
